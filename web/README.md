@@ -82,3 +82,16 @@ npm run preview           # in one shell
 node shot.mjs /tmp/shots  # screenshots at several scroll depths
 node a11y.mjs             # reduced motion + a11y report
 ```
+
+## Single-file build
+
+`pack-artifact.mjs` folds `dist/` into one self-contained HTML file — useful for
+sharing a preview without hosting anything.
+
+```bash
+npm run build
+node pack-artifact.mjs emg-hand-site.html
+```
+
+Three.js no longer ships a UMD build, so the library is inlined rather than
+pulled from a CDN. The result has no network dependency apart from the webfonts.
