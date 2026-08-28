@@ -1,7 +1,7 @@
 import gsap from 'gsap';
 import ScrollTrigger from 'gsap/ScrollTrigger';
 import { createHeroScene, createPartScene, REDUCED } from './three/scene.js';
-import { PARTS, GROUPS, BOM, DECISIONS, CHAIN } from './data/parts.js';
+import { PARTS, GROUPS, GROUP_HEX, BOM, DECISIONS, CHAIN } from './data/parts.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -9,12 +9,13 @@ const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
 /* ===================================================== shared render loop */
-// One rAF for both canvases. Scenes whose canvas is offscreen are skipped, so
-// the parts viewer costs nothing while the hero is in view.
+// One rAF for both canvases. A canvas inside a hidden tab measures 0×0, so the
+// visibility test skips it and the parts viewer costs nothing until opened.
 
 const scenes = [];
 function onScreen(canvas) {
   const r = canvas.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return false;
   return r.bottom > -200 && r.top < window.innerHeight + 200;
 }
 function loop(t) {
@@ -22,43 +23,18 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 
-/* ================================================================== nav */
-
-const nav = $('#nav');
-ScrollTrigger.create({
-  start: 'top -40',
-  onUpdate: (self) => nav.setAttribute('data-scrolled', String(self.scroll() > 40)),
-  onToggle: (self) => nav.setAttribute('data-scrolled', String(self.isActive)),
-});
-
-$$('.nav-links a').forEach((a) => {
-  const id = a.getAttribute('href').slice(1);
-  const el = document.getElementById(id);
-  if (!el) return;
-  ScrollTrigger.create({
-    trigger: el,
-    start: 'top 40%',
-    end: 'bottom 40%',
-    onToggle: (self) => a.setAttribute('aria-current', String(self.isActive)),
-  });
-});
-
 /* ================================================================= hero */
 
 const heroCanvas = $('#hero-canvas');
 const hero = createHeroScene(heroCanvas);
 scenes.push({ canvas: heroCanvas, frame: hero.frame });
 
-// Subtle parallax on pointer — clamped so the model never swings far.
 if (!REDUCED) {
   window.addEventListener('pointermove', (e) => {
     hero.state.pointer.x = (e.clientX / window.innerWidth - 0.5) * 2;
     hero.state.pointer.y = (e.clientY / window.innerHeight - 0.5) * 2;
   }, { passive: true });
-}
 
-// Opening beat.
-if (!REDUCED) {
   gsap.from('.hero-inner > *', {
     y: 26, opacity: 0, duration: 0.9, stagger: 0.09, ease: 'power2.out', delay: 0.15,
   });
@@ -68,45 +44,44 @@ if (!REDUCED) {
 }
 
 /* ======================================================== exploded view */
+// Each beat highlights one subsystem, and `hue` drives the card accent, the
+// chips, and the emissive rim on the matching 3D parts — so the colour in the
+// card and the colour in the model are the same statement.
 
 const BEATS = [
   {
-    at: 0.0,
-    eyebrow: 'Assembly',
-    title: 'Inside the forearm',
+    at: 0, hue: 'var(--violet)', group: null,
+    eyebrow: 'Assembly', title: 'Inside the forearm',
     body: 'The housing splits along its length. Everything that makes the hand work is mounted inside it — nothing sits in the fingers themselves.',
     chips: ['Shell closed'],
   },
   {
-    at: 0.28,
-    eyebrow: 'Shell',
-    title: 'A 2 mm printed housing',
+    at: 0.28, hue: 'var(--violet)', group: 'shell',
+    eyebrow: 'Shell', title: 'A 2 mm printed housing',
     body: 'Roughly 350 grams of PLA, printed hollow with an open servo-access side, internal mounting bosses, and channels for the tendon lines.',
     chips: ['forearm.shell.upper', 'forearm.shell.lower'],
   },
   {
-    at: 0.55,
-    eyebrow: 'Actuation',
-    title: 'Five servos, five tendons',
+    at: 0.55, hue: 'var(--pink)', group: 'servo',
+    eyebrow: 'Actuation', title: 'Five servos, five tendons',
     body: 'MG90S micro servos sit in a staggered bank to fit the taper of the forearm. Each pulls a braided line to one finger; elastic cord returns it.',
     chips: ['servo.thumb', 'servo.index', 'servo.middle', 'servo.ring', 'servo.pinky'],
   },
   {
-    at: 0.78,
-    eyebrow: 'Electronics',
-    title: 'The front end and the brain',
+    at: 0.78, hue: 'var(--cyan)', group: 'board',
+    eyebrow: 'Electronics', title: 'The front end and the brain',
     body: 'The analog board conditions the electrode signal; the ESP32-S3 digitises the envelope, applies the threshold, and drives all five PWM channels.',
     chips: ['pcb.afe', 'mcu.esp32'],
   },
   {
-    at: 1.0,
-    eyebrow: 'Complete',
-    title: 'Twenty-two parts',
+    at: 1, hue: 'var(--amber)', group: null,
+    eyebrow: 'Complete', title: 'Twenty-two parts',
     body: 'Every piece named, with its own pivot and travel vector — the structure real InMoov geometry drops straight into.',
     chips: ['Fully exploded'],
   },
 ];
 
+const bCard = $('#build-card');
 const bEyebrow = $('#build-eyebrow');
 const bTitle = $('#build-title');
 const bBody = $('#build-body');
@@ -118,19 +93,23 @@ function setBeat(i) {
   if (i === activeBeat) return;
   activeBeat = i;
   const b = BEATS[i];
+
+  bCard.style.setProperty('--beat-hue', b.hue);
+  hero.highlight(b.group);
+
   const swap = () => {
     bEyebrow.textContent = b.eyebrow;
     bTitle.textContent = b.title;
     bBody.textContent = b.body;
-    bReadout.innerHTML = b.chips
-      .map((c) => `<span data-on="true">${c}</span>`).join('');
+    bReadout.innerHTML = b.chips.map((c) => `<span>${c}</span>`).join('');
   };
+
   if (REDUCED) { swap(); return; }
-  gsap.to('.build-copy > *', {
-    opacity: 0, y: -8, duration: 0.22, stagger: 0.03, ease: 'power1.in',
+  gsap.to(bCard.children, {
+    opacity: 0, y: -8, duration: 0.2, stagger: 0.03, ease: 'power1.in',
     onComplete: () => {
       swap();
-      gsap.to('.build-copy > *', { opacity: 1, y: 0, duration: 0.34, stagger: 0.05, ease: 'power2.out' });
+      gsap.to(bCard.children, { opacity: 1, y: 0, duration: 0.34, stagger: 0.05, ease: 'power2.out' });
     },
   });
 }
@@ -146,15 +125,12 @@ ScrollTrigger.create({
     hero.state.explode = p;
     hero.state.spin = p * 1.15;
     bFill.style.height = `${p * 100}%`;
-
     let i = 0;
     for (let k = 0; k < BEATS.length; k++) if (p >= BEATS[k].at - 0.02) i = k;
     setBeat(i);
   },
 });
 
-// The hero canvas is fixed behind the build track, so it stays visible while
-// the copy scrolls. Pin it rather than duplicating the scene.
 ScrollTrigger.create({
   trigger: '#top',
   start: 'top top',
@@ -162,6 +138,55 @@ ScrollTrigger.create({
   end: 'bottom bottom',
   pin: '.hero-canvas',
   pinSpacing: false,
+});
+
+const nav = $('#nav');
+ScrollTrigger.create({
+  start: 'top -40',
+  onUpdate: (self) => nav.setAttribute('data-scrolled', String(self.scroll() > 40)),
+});
+
+/* ================================================================= tabs */
+
+const tablist = $('#tablist');
+const tabs = $$('[role="tab"]', tablist);
+const panels = tabs.map((t) => document.getElementById(t.getAttribute('aria-controls')));
+
+function selectTab(id, { focus = false } = {}) {
+  tabs.forEach((t, i) => {
+    const on = t.id === `tab-${id}`;
+    t.setAttribute('aria-selected', String(on));
+    t.tabIndex = on ? 0 : -1;
+    panels[i].hidden = !on;
+    if (on && focus) t.focus();
+  });
+  // Panel heights differ, so every pinned trigger below needs remeasuring.
+  ScrollTrigger.refresh();
+}
+
+tablist.addEventListener('click', (e) => {
+  const t = e.target.closest('[role="tab"]');
+  if (t) selectTab(t.id.replace('tab-', ''));
+});
+
+tablist.addEventListener('keydown', (e) => {
+  const i = tabs.findIndex((t) => t.getAttribute('aria-selected') === 'true');
+  let n = null;
+  if (e.key === 'ArrowRight') n = (i + 1) % tabs.length;
+  if (e.key === 'ArrowLeft') n = (i - 1 + tabs.length) % tabs.length;
+  if (e.key === 'Home') n = 0;
+  if (e.key === 'End') n = tabs.length - 1;
+  if (n === null) return;
+  e.preventDefault();
+  selectTab(tabs[n].id.replace('tab-', ''), { focus: true });
+});
+
+// Nav buttons open the matching tab, then scroll to it.
+$('#nav-links').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-goto]');
+  if (!b) return;
+  selectTab(b.dataset.goto);
+  tablist.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
 });
 
 /* ========================================================= signal chain */
@@ -172,7 +197,7 @@ const sctx = scope.getContext('2d');
 const scopeStage = $('#scope-stage');
 const scopeAmp = $('#scope-amp');
 
-const AMPS = ['1–5 mV', '20–100 mV', '20–100 mV', '1–5 V', '1–5 V', '0–5 V', '1–5 V'];
+const AMPS = ['1–5 mV', '20–100 mV', '20–100 mV', '1–5 V', '1–5 V', '0–5 V'];
 
 chainList.innerHTML = CHAIN.map((c, i) => `
   <li>
@@ -187,20 +212,17 @@ chainList.innerHTML = CHAIN.map((c, i) => `
 let stage = 0;
 let phase = 0;
 
-// Deterministic pseudo-random so the trace is stable frame to frame.
 function noise(x) {
   const s = Math.sin(x * 12.9898) * 43758.5453;
   return (s - Math.floor(s)) * 2 - 1;
 }
-
-// Burst envelope: two contractions per cycle.
 function burst(x) {
   const a = Math.exp(-Math.pow((x - 0.3) * 7, 2));
   const b = Math.exp(-Math.pow((x - 0.72) * 5.5, 2));
   return Math.min(1, a + b * 0.85);
 }
 
-// Signal as it appears after stage `st`.
+// The signal as it appears after stage `st`.
 function sample(x, st, t) {
   const env = burst(x);
   const raw = (noise(x * 220 + t * 0.5) * 0.55 + noise(x * 640 + t) * 0.45) * env;
@@ -208,42 +230,41 @@ function sample(x, st, t) {
   const hum = Math.sin(x * 78 + t * 2) * 0.09;
 
   switch (st) {
-    case 0: return raw * 0.5 + drift + hum;        // amplified, drift + hum intact
-    case 1: return raw * 0.62 + hum * 0.35;        // drift removed
-    case 2: return raw * 0.95 + hum * 0.2;         // amplified hard
-    case 3: return raw * 0.92;                     // band-limited, hum gone
-    case 4: return Math.abs(raw) * 0.95;           // rectified
-    case 5: return env * 0.82;                     // envelope
+    case 0: return raw * 0.5 + drift + hum;   // amplified; drift and hum intact
+    case 1: return raw * 0.62 + hum * 0.35;   // drift removed
+    case 2: return raw * 0.95 + hum * 0.2;    // amplified hard
+    case 3: return raw * 0.92;                // band-limited, hum gone
+    case 4: return Math.abs(raw) * 0.95;      // rectified
+    case 5: return env * 0.82;                // envelope
     default: return raw;
   }
 }
+
+// Trace colour walks the accent spectrum as the signal is conditioned: amber
+// while it is raw analog, cyan by the time it is ready for the ADC.
+const TRACE = ['#FF9A4D', '#FFB35C', '#FFC768', '#A8E64A', '#5FDCC0', '#35CFE8'];
 
 function drawScope(t) {
   const W = scope.width, H = scope.height;
   sctx.clearRect(0, 0, W, H);
 
-  const mid = H / 2;
-  const css = getComputedStyle(document.documentElement);
-  const sig = css.getPropertyValue('--signal').trim() || '#ff7a2f';
-  const dim = css.getPropertyValue('--ink-faint').trim() || '#646c75';
+  const rectified = stage === 4 || stage === 5;
+  const base = rectified ? H - 26 : H / 2;
+  const scale = rectified ? H - 52 : H / 2 - 22;
+  const col = TRACE[stage];
 
-  // Zero line.
-  sctx.strokeStyle = dim;
-  sctx.globalAlpha = 0.32;
+  sctx.strokeStyle = '#736DA0';
+  sctx.globalAlpha = 0.35;
   sctx.lineWidth = 1;
   sctx.beginPath();
-  sctx.moveTo(0, stage === 4 || stage === 5 ? H - 26 : mid);
-  sctx.lineTo(W, stage === 4 || stage === 5 ? H - 26 : mid);
+  sctx.moveTo(0, base);
+  sctx.lineTo(W, base);
   sctx.stroke();
   sctx.globalAlpha = 1;
 
-  const base = stage === 4 || stage === 5 ? H - 26 : mid;
-  const scale = stage === 4 || stage === 5 ? (H - 52) : (H / 2 - 22);
-
-  // Glow pass, then the crisp trace on top.
-  for (const pass of [{ w: 6, a: 0.16 }, { w: 1.7, a: 1 }]) {
+  for (const pass of [{ w: 9, a: 0.13 }, { w: 4, a: 0.2 }, { w: 1.8, a: 1 }]) {
     sctx.beginPath();
-    sctx.strokeStyle = sig;
+    sctx.strokeStyle = col;
     sctx.globalAlpha = pass.a;
     sctx.lineWidth = pass.w;
     sctx.lineJoin = 'round';
@@ -262,6 +283,7 @@ function selectStage(i) {
   $$('.chain-step').forEach((b, k) => b.setAttribute('aria-selected', String(k === i)));
   scopeStage.textContent = `Stage ${i + 1} — ${CHAIN[i].name}`;
   scopeAmp.textContent = AMPS[i];
+  scopeAmp.style.color = TRACE[i];
 }
 
 chainList.addEventListener('click', (e) => {
@@ -277,7 +299,6 @@ chainList.addEventListener('keydown', (e) => {
 });
 selectStage(0);
 
-// Scope has its own ticker so it keeps running independent of the 3D scenes.
 (function scopeLoop() {
   if (onScreen(scope)) {
     if (!REDUCED) phase += 0.016;
@@ -286,41 +307,34 @@ selectStage(0);
   requestAnimationFrame(scopeLoop);
 })();
 
-// Walk the chain automatically as the section scrolls.
-ScrollTrigger.create({
-  trigger: '#chain',
-  start: 'top 60%',
-  end: 'bottom bottom',
-  scrub: true,
-  onUpdate: (self) => {
-    const i = Math.min(CHAIN.length - 1, Math.floor(self.progress * CHAIN.length));
-    if (i !== stage) selectStage(i);
-  },
-});
-
 /* =============================================================== parts */
 
 const partCanvas = $('#part-canvas');
 const partScene = createPartScene(partCanvas);
 scenes.push({ canvas: partCanvas, frame: partScene.frame });
 
+const viewer = $('#parts-viewer');
 const filterEl = $('#parts-filter');
 const listEl = $('#parts-list');
 const detailEl = $('#part-detail');
 const badgeEl = $('#part-badge');
+const partsLayout = $('.parts-layout');
 
 let filter = 'all';
 let selected = PARTS[0].id;
 
-filterEl.innerHTML = [{ id: 'all', label: 'All' }, ...GROUPS]
-  .map((g) => `<button role="tab" data-group="${g.id}" aria-selected="${g.id === 'all'}">${g.label}</button>`)
+filterEl.innerHTML = [{ id: 'all', label: 'All', hex: '#F4F3FF' }, ...GROUPS]
+  .map((g) => `<button type="button" data-group="${g.id}" style="--g-hue: ${g.hex}"
+        aria-selected="${g.id === 'all'}">${g.label}</button>`)
   .join('');
 
 function renderList() {
   const items = PARTS.filter((p) => filter === 'all' || p.group === filter);
   listEl.innerHTML = items.map((p) => `
     <li>
-      <button class="part-btn" data-id="${p.id}" aria-selected="${p.id === selected}">
+      <button class="part-btn" type="button" data-id="${p.id}"
+              style="--p-hue: ${GROUP_HEX[p.group]}"
+              aria-selected="${p.id === selected}">
         <span class="pn">${p.name}</span>
         <span class="pd">${p.designator}</span>
         <span class="ps">${p.subtitle}</span>
@@ -333,12 +347,18 @@ function selectPart(id) {
   selected = id;
   const p = PARTS.find((x) => x.id === id);
   if (!p) return;
+  const hue = GROUP_HEX[p.group];
 
   $$('.part-btn').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.id === id)));
-  partScene.show(p.model);
+
+  // The subsystem hue drives the viewer glow, the badge, the heading and the note.
+  partsLayout.style.setProperty('--p-hue', hue);
+  viewer.style.setProperty('--p-hue', hue);
+  partScene.show(p.model, hue);
 
   badgeEl.innerHTML = `<b>${p.designator}</b><span>${p.package}</span>`;
 
+  detailEl.style.setProperty('--p-hue', hue);
   detailEl.innerHTML = `
     <h3>${p.headline}</h3>
     <p class="pdesc">${p.what}</p>
@@ -349,7 +369,7 @@ function selectPart(id) {
       <div><dt>Qty</dt><dd>${p.qty}</dd></div>
       <div><dt>Cost</dt><dd>${p.cost}</dd></div>
     </dl>
-    <p class="pnote" data-safety="${!!p.safety}">${p.note}</p>`;
+    <p class="pnote">${p.note}</p>`;
 
   if (!REDUCED) {
     gsap.fromTo(detailEl.children,
@@ -371,21 +391,19 @@ listEl.addEventListener('click', (e) => {
   if (b) selectPart(b.dataset.id);
 });
 
-// Drag to spin.
 {
-  const v = $('.parts-viewer');
   let down = false, lastX = 0;
-  v.addEventListener('pointerdown', (e) => {
-    down = true; lastX = e.clientX; v.setPointerCapture(e.pointerId);
+  viewer.addEventListener('pointerdown', (e) => {
+    down = true; lastX = e.clientX; viewer.setPointerCapture(e.pointerId);
   });
-  v.addEventListener('pointermove', (e) => {
+  viewer.addEventListener('pointermove', (e) => {
     if (!down) return;
     partScene.state.drag += (e.clientX - lastX) * 0.01;
     lastX = e.clientX;
   });
   const up = () => { down = false; };
-  v.addEventListener('pointerup', up);
-  v.addEventListener('pointercancel', up);
+  viewer.addEventListener('pointerup', up);
+  viewer.addEventListener('pointercancel', up);
 }
 
 renderList();
@@ -404,16 +422,17 @@ $('#bom-body').innerHTML = BOM
   .join('');
 
 /* ============================================================= reveals */
+// Only content outside the tab panels — a panel that starts hidden would never
+// fire its trigger and would stay at opacity 0 once opened.
 
 if (!REDUCED) {
-  $$('.sec-head, .chain-scope, .parts-layout, .decision, .table-scroll, .placeholder-note .wrap')
-    .forEach((el) => {
-      el.classList.add('reveal');
-      gsap.to(el, {
-        opacity: 1, y: 0, duration: 0.7, ease: 'power2.out',
-        scrollTrigger: { trigger: el, start: 'top 88%', toggleActions: 'play none none reverse' },
-      });
+  $$('.placeholder-note .wrap, .tablist').forEach((el) => {
+    el.classList.add('reveal');
+    gsap.to(el, {
+      opacity: 1, y: 0, duration: 0.7, ease: 'power2.out',
+      scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none reverse' },
     });
+  });
 }
 
 requestAnimationFrame(loop);

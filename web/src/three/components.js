@@ -457,7 +457,7 @@ const BUILDERS = {
 
 // Every part is normalised to the same on-screen size, so a resistor and a
 // dev board both fill the viewer and the camera never has to move.
-const TARGET_SPAN = 4.0;
+const TARGET_SPAN = 3.3;
 
 export function buildComponent(model) {
   const fn = BUILDERS[model] || BUILDERS.dip8;

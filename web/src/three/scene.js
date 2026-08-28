@@ -80,6 +80,33 @@ export function createHeroScene(canvas) {
   hand.rotation.x = 0.16;
   scene.add(hand);
 
+  // Beat highlighting. Each scroll beat names a subsystem; its parts take an
+  // emissive rim in that beat's hue so the card's chips and the model agree.
+  const HL = {
+    shell: { match: (n) => n.startsWith('forearm.shell') || n === 'palm.core', hex: 0xA78BFA },
+    servo: { match: (n) => n.startsWith('servo.'), hex: 0xFF7BB0 },
+    board: { match: (n) => n === 'pcb.afe' || n === 'mcu.esp32', hex: 0x35CFE8 },
+  };
+  const lit = [];
+  function highlight(group) {
+    lit.forEach((m) => { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; });
+    lit.length = 0;
+    const rule = HL[group];
+    if (!rule) return;
+    hand.traverse((o) => {
+      if (!o.isMesh && !o.isGroup) return;
+      let n = o.name;
+      if (!n) { let p = o.parent; while (p && !p.name) p = p.parent; n = p ? p.name : ''; }
+      if (!rule.match(n)) return;
+      o.traverse((c) => {
+        if (!c.isMesh || !c.material || !('emissive' in c.material)) return;
+        c.material.emissive.setHex(rule.hex);
+        c.material.emissiveIntensity = 0.42;
+        lit.push(c.material);
+      });
+    });
+  }
+
   // Catch shadows without painting a visible floor.
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(40, 40),
@@ -113,10 +140,14 @@ export function createHeroScene(canvas) {
     // scrim carry legibility instead. The bias relaxes as the assembly opens,
     // or the spread parts would walk off the right edge.
     const wide = canvas.clientWidth > 900;
-    const bias = wide ? -2.9 * (1 - state.explode * 0.72) : 0;
+    const bias = wide ? -2.45 * (1 - state.explode * 0.72) : 0;
 
     // Camera pulls back and lifts as the assembly opens.
-    const d = (wide ? 7.9 : 9.4) + state.explode * 5.6;
+    // A portrait viewport has far less horizontal room for the spread parts, so
+    // it needs a longer pullback than the width difference alone suggests.
+    const d = wide
+      ? 8.6 + state.explode * 5.4
+      : 10.4 + state.explode * 11.0;
     const lift = 1.1 + state.explode * 2.2;
     camera.position.set(
       Math.sin(state.spin) * d + state.pointer.x * 0.7,
@@ -131,7 +162,7 @@ export function createHeroScene(canvas) {
     renderer.render(scene, camera);
   }
 
-  return { renderer, scene, camera, hand, state, frame, resize };
+  return { renderer, scene, camera, hand, state, frame, resize, highlight };
 }
 
 /* -------------------------------------------------- component carousel */
@@ -142,10 +173,10 @@ export function createPartScene(canvas) {
   scene.environment = studioEnv(renderer);
   scene.environmentIntensity = 1.15;
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-  camera.position.set(0, 1.25, 4.5);
+  camera.position.set(0, 1.15, 5.0);
   camera.lookAt(0, 0, 0);
 
-  lightRig(scene, { warm: 0xffc08a, rim: 0xff7a2f });
+  const rig = lightRig(scene, { warm: 0xffd0a8, rim: 0xff9a4d });
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(30, 30),
@@ -163,12 +194,15 @@ export function createPartScene(canvas) {
   let current = null;
   const state = { spin: 0, targetSpin: 0, drag: 0, entering: 0 };
 
-  function show(model) {
+  // The rim light takes the part's subsystem hue, so the 3D view carries the
+  // same colour coding as the list beside it.
+  function show(model, hex) {
     if (current) holder.remove(current);
     if (!cache.has(model)) cache.set(model, buildComponent(model));
     current = cache.get(model);
     holder.add(current);
     state.entering = 1;
+    if (hex) rig.back.color.set(hex);
   }
 
   function resize() {

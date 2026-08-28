@@ -4,13 +4,18 @@
 // numbers. `model` names the procedural builder in three/components.js that draws
 // the part; `group` drives the filter rail.
 
+// Each subsystem carries a hue. The same colour marks a part in the list, its
+// chip in the exploded view, and its emissive rim in 3D — so colour encodes
+// which domain something belongs to rather than decorating.
 export const GROUPS = [
-  { id: 'analog', label: 'Analog front end' },
-  { id: 'sensing', label: 'Sensing' },
-  { id: 'compute', label: 'Compute' },
-  { id: 'actuation', label: 'Actuation' },
-  { id: 'passive', label: 'Passives' },
+  { id: 'analog',    label: 'Analog front end', hue: 'amber',  hex: '#FF9A4D' },
+  { id: 'sensing',   label: 'Sensing',          hue: 'lime',   hex: '#A8E64A' },
+  { id: 'compute',   label: 'Compute',          hue: 'cyan',   hex: '#35CFE8' },
+  { id: 'actuation', label: 'Actuation',        hue: 'pink',   hex: '#FF7BB0' },
+  { id: 'passive',   label: 'Passives',         hue: 'violet', hex: '#A78BFA' },
 ];
+
+export const GROUP_HEX = Object.fromEntries(GROUPS.map((g) => [g.id, g.hex]));
 
 export const PARTS = [
   {
