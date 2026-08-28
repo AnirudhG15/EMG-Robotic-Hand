@@ -7,25 +7,32 @@ This project is configured to use the following global Claude Code skills:
 ### 1. **frontend-design**
 - **Source**: Anthropic's Claude Code repository
 - **Purpose**: Create design canvases and UI mockups
-- **Usage**: `/design` command
+- **Usage**: `/frontend-design` command
 
-### 2. **ui-ux-pro-max-skill**
+### 2. **UI/UX Pro Max Skills**
 - **Source**: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
-- **Purpose**: Professional UI/UX design capabilities
-- **Installation**: Global installation at `~/.claude/skills/ui-ux-pro-max-skill`
+- **Installation**: Global installation at `~/.claude/skills/`
+- **Available Skills**:
+  - `/design` - General UI/UX design
+  - `/banner-design` - Banner and graphic design
+  - `/brand` - Brand identity design
+  - `/design-system` - Design system and token architecture
+  - `/slides` - Presentation design
+  - `/ui-styling` - UI styling with shadcn/ui and Tailwind
 
 ## Usage
 
-Both skills are installed globally and available across all projects.
+All skills are installed globally and available across all projects.
 
-To use them in Claude Code:
-- Type `/frontend-design` or `/ui-ux-pro-max-skill` followed by your design request
-- These skills provide professional-grade UI/UX design capabilities
+To use any skill in Claude Code:
+- Type `/` in the chat to see all available skills
+- Type `/skill-name` followed by your request
+- These skills provide professional-grade design capabilities
 
 ## Project Setup
 
-Skills are configured in `.claude/settings.json` and available globally via:
-- `~/.claude/skills/frontend-design`
-- `~/.claude/skills/ui-ux-pro-max-skill`
+Skills are configured in `.claude/settings.json` and symlinked globally for easy access:
+- `~/.claude/skills/frontend-design` (Anthropic)
+- `~/.claude/skills/design/` (and other UI/UX Pro Max skills)
 
-Both skills are ready to use for UI/UX design work on this project.
+All skills are ready to use for UI/UX design work on this project.
