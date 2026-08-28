@@ -1,21 +1,27 @@
-# Claude Code Configuration for EMG Robotic Hand
+# Claude Code notes for EMG Robotic Hand
 
-## Installed Skills
+## Design skills
 
-This project has access to the following skills:
+Two design skills are used with this project. Both are **account-level plugins**,
+not files in this repo — installing them is a one-time action per account, and
+they then sync into every project and every Claude Code session, including the
+ephemeral containers used by Claude Code on the web.
 
-### 1. **frontend-design**
-- **Source**: Anthropic's Claude Code repository
-- **Purpose**: Create design canvases and UI mockups
-- **Usage**: `/frontend-design` command
+| Skill | Plugin | Marketplace |
+| --- | --- | --- |
+| `ui-ux-pro-max` | `ui-ux-pro-max` | [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) |
+| `frontend-design` | `frontend-design` | [anthropics/claude-code](https://github.com/anthropics/claude-code) |
 
-### 2. **ui-ux-pro-max-skill**
-- **Source**: https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
-- **Installation**: Global installation at `~/.claude/skills/ui-ux-pro-max-skill`
-- **Usage**: Access the toolkit via Python scripts or through the search interface
+To install (run in Claude Code, any session):
 
-## Setup
+```
+/plugin marketplace add nextlevelbuilder/ui-ux-pro-max-skill
+/plugin install ui-ux-pro-max@ui-ux-pro-max-skill
 
-- **ui-ux-pro-max-skill** is installed globally at `~/.claude/skills/ui-ux-pro-max-skill`
-- **frontend-design** is available through Claude Code's built-in skills
-- Both can be used across all projects
+/plugin marketplace add anthropics/claude-code
+/plugin install frontend-design@claude-code-plugins
+```
+
+Cloning either repo into `~/.claude/skills/` also works, but only for the
+session that did it — on the web the container is discarded when the session
+ends, so the skill is gone from the next chat. Use the plugin install above.
