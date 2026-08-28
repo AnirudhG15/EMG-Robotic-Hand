@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# KiCad
+*.kicad_pcb-bak
+*.kicad_sch-bak
+fp-info-cache
+*.kicad_pro
+pcb/fp-lib-table
+
+# Arduino/PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+*.elf
+*.hex
+build/
+.vscode/.browse.c_cpp_database
+
+# CAD
+*.step-backup
+*.stp-backup
+
+# Data and logs
+data/*.csv
+data/*.log
+data/*.txt
+!data/.gitkeep
+*.bin
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*.old
