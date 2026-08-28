@@ -81,3 +81,9 @@ Thumbs.db
 *.tmp
 *.bak
 *.old
+
+# Node / web
+node_modules/
+web/node_modules/
+web/dist/
+*.log

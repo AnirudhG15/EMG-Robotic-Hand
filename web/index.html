@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EMG Robotic Hand — Anirudh G.</title>
+<meta name="description" content="An EMG-controlled robotic hand: a 990× analog front end, an ESP32-S3, and five tendon-driven fingers. Built as an M468 independent study.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<nav class="nav" id="nav">
+  <a class="nav-mark" href="#top">
+    <span class="nav-dot" aria-hidden="true"></span>
+    <span>EMG&nbsp;Hand</span>
+  </a>
+  <div class="nav-links">
+    <a href="#build">Build</a>
+    <a href="#chain">Signal chain</a>
+    <a href="#parts">Parts</a>
+    <a href="#decisions">Decisions</a>
+    <a href="#bom">BOM</a>
+  </div>
+</nav>
+
+<main id="main">
+
+<!-- ============================================ hero -->
+<section class="hero" id="top">
+  <canvas class="hero-canvas" id="hero-canvas" aria-hidden="true"></canvas>
+  <div class="hero-grid" aria-hidden="true"></div>
+
+  <div class="hero-inner">
+    <p class="eyebrow">M468 Independent Study · Semester 1</p>
+    <h1>
+      A robotic hand<br>
+      driven by <em>muscle signals</em>
+    </h1>
+    <p class="lede">
+      Three electrodes read 20 microvolts off the forearm. A six-stage analog
+      front end amplifies them nine hundred and ninety times. Five servos answer.
+    </p>
+    <div class="hero-stats">
+      <div><b>×990</b><span>cascade gain</span></div>
+      <div><b>20 µV</b><span>input floor</span></div>
+      <div><b>6</b><span>analog stages</span></div>
+      <div><b>5</b><span>actuated fingers</span></div>
+    </div>
+  </div>
+
+  <div class="scroll-cue" aria-hidden="true">
+    <span>Scroll to open</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- ============================================ exploded view -->
+<section class="build" id="build">
+  <div class="build-sticky">
+    <div class="build-copy">
+      <p class="eyebrow" id="build-eyebrow">Assembly</p>
+      <h2 id="build-title">Inside the forearm</h2>
+      <p id="build-body">
+        The housing splits along its length. Everything that makes the hand work
+        is mounted inside it.
+      </p>
+      <div class="build-readout" id="build-readout"></div>
+    </div>
+    <div class="build-progress" aria-hidden="true">
+      <div class="build-progress-fill" id="build-progress-fill"></div>
+    </div>
+  </div>
+  <div class="build-track" id="build-track"></div>
+</section>
+
+<div class="placeholder-note">
+  <div class="wrap">
+    <span class="tag">Placeholder geometry</span>
+    <p>
+      The hand above is procedural stand-in geometry, not the real assembly. Every
+      part is separately named with its own pivot and travel vector, so the real
+      InMoov meshes drop into the same slots without touching the choreography.
+      The components below are modelled from the actual bill of materials.
+    </p>
+  </div>
+</div>
+
+<!-- ============================================ signal chain -->
+<section class="chain" id="chain">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="eyebrow">The analog front end</p>
+      <h2>From 1 millivolt to 1 volt in six stages</h2>
+      <p class="sec-lede">
+        Surface EMG arrives buried under mains hum and electrode drift, at an
+        amplitude a thousand times too small to digitise. Each stage does one job.
+      </p>
+    </header>
+
+    <div class="chain-scope">
+      <canvas id="scope" width="1200" height="260" aria-label="Live waveform showing the EMG signal at the selected stage of the analog chain"></canvas>
+      <div class="scope-meta">
+        <span id="scope-stage">Stage 1 — Instrumentation amp</span>
+        <span id="scope-amp">1–5 mV</span>
+      </div>
+    </div>
+
+    <ol class="chain-list" id="chain-list"></ol>
+  </div>
+</section>
+
+<!-- ============================================ parts -->
+<section class="parts" id="parts">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="eyebrow">Bill of materials, in three dimensions</p>
+      <h2>Every part, and why it is there</h2>
+      <p class="sec-lede">
+        Thirteen components carry the whole design. Each one is modelled from its
+        package dimensions — select any part to rotate it.
+      </p>
+    </header>
+  </div>
+
+  <div class="parts-layout">
+    <div class="parts-rail">
+      <div class="parts-filter" id="parts-filter" role="tablist" aria-label="Filter components by subsystem"></div>
+      <ul class="parts-list" id="parts-list"></ul>
+    </div>
+
+    <div class="parts-stage">
+      <div class="parts-viewer">
+        <canvas id="part-canvas" aria-hidden="true"></canvas>
+        <div class="parts-viewer-hint" aria-hidden="true">Drag to rotate</div>
+        <div class="parts-badge" id="part-badge"></div>
+      </div>
+      <article class="parts-detail" id="part-detail" aria-live="polite"></article>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================ decisions -->
+<section class="decisions" id="decisions">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="eyebrow">Engineering rationale</p>
+      <h2>Four decisions that shaped the build</h2>
+    </header>
+    <div class="decision-grid" id="decision-grid"></div>
+  </div>
+</section>
+
+<!-- ============================================ bom -->
+<section class="bom" id="bom">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="eyebrow">Cost</p>
+      <h2>The whole thing runs about $120</h2>
+      <p class="sec-lede">
+        Excluding the ESP32, which was already on the bench. The expensive part of
+        this project was the design, not the parts.
+      </p>
+    </header>
+    <div class="table-scroll">
+      <table id="bom-table">
+        <thead>
+          <tr>
+            <th scope="col">Category</th>
+            <th scope="col">Item</th>
+            <th scope="col">Spec</th>
+            <th scope="col">Qty</th>
+            <th scope="col">Cost</th>
+          </tr>
+        </thead>
+        <tbody id="bom-body"></tbody>
+        <tfoot>
+          <tr><td colspan="4">Total</td><td>≈ $120–127</td></tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <p class="foot-title">EMG-Controlled Robotic Hand</p>
+        <p>Anirudh G. · M468 Independent Study, Semester 1</p>
+      </div>
+      <div>
+        <p class="foot-title">Mechanical base</p>
+        <p>InMoov hand and forearm by Gaël&nbsp;Langevin (2012), used under CC&nbsp;BY-NC-SA. The hollow forearm housing, analog front end, PCB, and firmware are original work.</p>
+      </div>
+      <div>
+        <p class="foot-title">Repository</p>
+        <p><a href="https://github.com/AnirudhG15/EMG-Robotic-Hand">github.com/AnirudhG15/EMG-Robotic-Hand</a></p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</main>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
