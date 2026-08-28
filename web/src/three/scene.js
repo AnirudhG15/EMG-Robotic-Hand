@@ -1,8 +1,23 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildHand, setExplode, setCurl } from './hand.js';
 import { buildComponent } from './components.js';
 
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Image-based lighting. Direct lights alone give metal a flat grey wash — what
+// actually sells solder mask, tin plating and moulded epoxy is what they
+// reflect. RoomEnvironment is a procedural studio box that ships with three, so
+// this costs no download and no HDRI file.
+let envCache = null;
+function studioEnv(renderer) {
+  if (envCache) return envCache;
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  pmrem.compileEquirectangularShader();
+  envCache = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
+  return envCache;
+}
 
 // Studio lighting: a warm key from the front-right, a cool fill from the left,
 // and a hard amber rim behind. The rim is what separates the part from a dark
@@ -55,6 +70,7 @@ function makeRenderer(canvas) {
 export function createHeroScene(canvas) {
   const renderer = makeRenderer(canvas);
   const scene = new THREE.Scene();
+  scene.environment = studioEnv(renderer);
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
 
   lightRig(scene);
@@ -123,6 +139,8 @@ export function createHeroScene(canvas) {
 export function createPartScene(canvas) {
   const renderer = makeRenderer(canvas);
   const scene = new THREE.Scene();
+  scene.environment = studioEnv(renderer);
+  scene.environmentIntensity = 1.15;
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
   camera.position.set(0, 1.25, 4.5);
   camera.lookAt(0, 0, 0);
