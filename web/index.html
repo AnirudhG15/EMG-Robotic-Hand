@@ -30,6 +30,9 @@
 
 <main id="main">
 
+<!-- The stage sticks only within this wrapper. Without it, sticky is bounded
+     by <main> and the model stays pinned over every section below. -->
+<div class="stage-wrap">
 <!-- ============================================ explorer -->
 <section class="stage" id="top">
   <canvas class="stage-canvas" id="hand-canvas" aria-hidden="true"></canvas>
@@ -101,6 +104,7 @@
 <section class="build" id="build" aria-hidden="true">
   <div class="build-track"></div>
 </section>
+</div>
 
 <div class="placeholder-note">
   <div class="wrap">

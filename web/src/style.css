@@ -139,6 +139,11 @@ section { position: relative; }
 
 /* ------------------------------------------------------------- explorer */
 
+/* Bounds the sticky stage. A sticky element sticks within its containing
+   block, so without this the stage would stay pinned for the whole document
+   and the model would sit behind every section further down the page. */
+.stage-wrap { position: relative; }
+
 /* The stage is a fixed viewport the model lives in while the page scrolls
    past it, so the hand stays put and only the assembly moves. */
 .stage {
@@ -164,6 +169,11 @@ section { position: relative; }
   transition: opacity .3s ease;
 }
 body[data-index-open="true"] .stage-head { opacity: .12; }
+/* On a portrait viewport the model is lifted into the top half to clear the
+   detail sheet, which is exactly where the copy sits. */
+@media (max-width: 860px) {
+  body[data-selected="true"] .stage-head { opacity: .1; }
+}
 .stage-head {
   position: absolute; top: calc(var(--nav-h) + clamp(1.4rem, 4vh, 3rem));
   left: clamp(1.2rem, 5vw, 4rem);

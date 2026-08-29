@@ -51,6 +51,7 @@ function showHint(info) {
 function showInspect(info) {
   const open = !!info;
   stats.setAttribute('data-hidden', String(open));
+  document.body.setAttribute('data-selected', String(open));
   if (!open) { inspect.hidden = true; return; }
 
   const d = HAND_INFO[info.info];

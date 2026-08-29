@@ -276,10 +276,33 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
 
   const target = new THREE.Vector3();
 
+  // Adaptive quality. GTAO and bloom are the two expensive passes; on a device
+  // that cannot hold a smooth frame they are dropped in that order rather than
+  // letting the whole scene stutter. Sampling starts after a warm-up so shader
+  // compilation and the first upload do not count against it.
+  let qualityFrames = 0;
+  let slowFrames = 0;
+  let tier = 2;
+  function checkQuality(dt) {
+    if (tier === 0) return;
+    qualityFrames++;
+    if (qualityFrames < 40) return;      // warm-up
+    if (dt > 34) slowFrames++;
+    if (qualityFrames < 130) return;     // ~2s sample
+    if (slowFrames > 45) {
+      tier--;
+      if (tier === 1) gtao.enabled = false;
+      else if (tier === 0) bloom.enabled = false;
+    }
+    qualityFrames = 40;
+    slowFrames = 0;
+  }
+
   function frame(t) {
     resize();
     const dt = Math.min(60, lastT ? t - lastT : 16.7);
     lastT = t;
+    if (ready) checkQuality(dt);
 
     if (state.autoSpin && !REDUCED && !selected) state.targetYaw += dt * 0.00009;
 
@@ -320,7 +343,12 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
       state.lift + Math.sin(state.pitch) * d + 60,
       Math.cos(state.yaw) * d * cp,
     );
-    target.set(0, state.lift, 0);
+
+    // On a portrait viewport the detail panel is a bottom sheet covering the
+    // lower half, so aim lower to push the model into the visible top half.
+    const portrait = canvas.clientHeight > canvas.clientWidth * 1.15;
+    const visH = 2 * d * Math.tan((camera.fov * Math.PI / 180) / 2);
+    target.set(0, state.lift - (portrait ? visH * 0.16 : 0), 0);
     camera.lookAt(target);
 
     composer.render();
