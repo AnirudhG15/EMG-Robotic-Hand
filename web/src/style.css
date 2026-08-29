@@ -420,7 +420,7 @@ body[data-index-open="true"] .stage-head { opacity: .12; }
    every click meant for the model. Scrolling is unaffected — wheel and touch
    scroll do not depend on hit-testing this element. */
 .build { position: relative; margin-top: -100svh; pointer-events: none; }
-.build-track { height: 420svh; }
+.build-track { height: 340svh; }
 
 /* --------------------------------------------------------- placeholder */
 

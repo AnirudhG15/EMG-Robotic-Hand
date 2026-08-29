@@ -224,6 +224,15 @@ function selectTab(id, { focus = false } = {}) {
   });
   // Panel heights differ, so every pinned trigger below needs remeasuring.
   ScrollTrigger.refresh();
+
+  // Content animates on tab switch rather than on scroll: a panel that starts
+  // hidden never fires a scroll trigger, and would open at zero opacity.
+  if (REDUCED) return;
+  const panel = panels[tabs.findIndex((t) => t.id === `tab-${id}`)];
+  if (!panel) return;
+  gsap.fromTo(panel.children,
+    { opacity: 0, y: 18 },
+    { opacity: 1, y: 0, duration: 0.5, stagger: 0.07, ease: 'power3.out', clearProps: 'transform' });
 }
 
 tablist.addEventListener('click', (e) => {
