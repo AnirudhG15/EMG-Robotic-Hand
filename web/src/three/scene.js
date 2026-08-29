@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildHand, setExplode, setCurl } from './hand.js';
 import { buildComponent } from './components.js';
+import { loadHandPack } from './handpack.js';
+import { buildAssembly, setAssemblyExplode } from './assembly.js';
 
 const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -75,36 +77,80 @@ export function createHeroScene(canvas) {
 
   lightRig(scene);
 
+  // Procedural stand-in shows instantly; the real printed geometry swaps in as
+  // soon as the pack loads, so the hero is never empty and never blocks on a
+  // 2 MB fetch.
   const hand = buildHand();
   hand.rotation.y = -0.5;
   hand.rotation.x = 0.16;
   scene.add(hand);
 
+  const REAL_SCALE = 0.0132;
+  let real = null;
+  // Printed PLA, not painted plastic: mid-grey so the studio key light has
+  // somewhere to go. A near-white base blows out to a flat silhouette.
+  const shellMat = new THREE.MeshStandardMaterial({
+    color: 0x7d8496, roughness: 0.74, metalness: 0.04,
+  });
+  loadHandPack(shellMat).then((parts) => {
+    real = buildAssembly(parts);
+    real.scale.setScalar(REAL_SCALE);
+    real.position.set(0, 0.15, 60 * REAL_SCALE);
+    real.rotation.y = -0.62;
+    real.rotation.x = 0.16;
+    scene.remove(hand);
+    scene.add(real);
+  }).catch((e) => console.warn('handpack unavailable, keeping placeholder', e));
+
   // Beat highlighting. Each scroll beat names a subsystem; its parts take an
   // emissive rim in that beat's hue so the card's chips and the model agree.
-  const HL = {
-    shell: { match: (n) => n.startsWith('forearm.shell') || n === 'palm.core', hex: 0xA78BFA },
-    servo: { match: (n) => n.startsWith('servo.'), hex: 0xFF7BB0 },
-    board: { match: (n) => n === 'pcb.afe' || n === 'mcu.esp32', hex: 0x35CFE8 },
+  // Beat highlighting. Real parts carry userData.sub; the placeholder is matched
+  // by name. Each beat's subsystems glow in that beat's hue so the card chips
+  // and the model are making the same statement.
+  const HUE = {
+    shell: 0xB49AFF, wrist: 0xB49AFF, palm: 0xB49AFF,
+    finger: 0xFF8ABB, electronics: 0x45D9F0, hardware: 0xB7F056,
   };
+  const PLACEHOLDER = {
+    shell: (n) => n.startsWith('forearm.shell') || n === 'palm.core',
+    finger: (n) => n.startsWith('finger.') || n.startsWith('servo.'),
+    electronics: (n) => n === 'pcb.afe' || n === 'mcu.esp32',
+  };
+
+  // Real geometry shares one material across every mesh, so emissive has to be
+  // cloned per highlighted part or the whole model lights up at once.
   const lit = [];
-  function highlight(group) {
-    lit.forEach((m) => { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; });
+  function clearLit() {
+    for (const m of lit) { m.emissive.setHex(0x000000); m.emissiveIntensity = 0; }
     lit.length = 0;
-    const rule = HL[group];
-    if (!rule) return;
-    hand.traverse((o) => {
-      if (!o.isMesh && !o.isGroup) return;
-      let n = o.name;
-      if (!n) { let p = o.parent; while (p && !p.name) p = p.parent; n = p ? p.name : ''; }
-      if (!rule.match(n)) return;
-      o.traverse((c) => {
-        if (!c.isMesh || !c.material || !('emissive' in c.material)) return;
-        c.material.emissive.setHex(rule.hex);
-        c.material.emissiveIntensity = 0.42;
-        lit.push(c.material);
-      });
+  }
+  function paint(obj, hex) {
+    obj.traverse((c) => {
+      if (!c.isMesh || !c.material || !('emissive' in c.material)) return;
+      if (!c.userData.ownMat) { c.material = c.material.clone(); c.userData.ownMat = true; }
+      c.material.emissive.setHex(hex);
+      c.material.emissiveIntensity = 0.45;
+      lit.push(c.material);
     });
+  }
+
+  function highlight(subs) {
+    clearLit();
+    if (!subs || !subs.length) return;
+    if (real) {
+      for (const o of real.userData.items) {
+        if (subs.includes(o.userData.sub)) paint(o, HUE[o.userData.sub] || 0xB49AFF);
+      }
+      return;
+    }
+    for (const sub of subs) {
+      const test = PLACEHOLDER[sub];
+      if (!test) continue;
+      hand.traverse((o) => {
+        if (!o.name || !test(o.name)) return;
+        paint(o, HUE[sub] || 0xB49AFF);
+      });
+    }
   }
 
   // Catch shadows without painting a visible floor.
@@ -113,7 +159,7 @@ export function createHeroScene(canvas) {
     new THREE.ShadowMaterial({ opacity: 0.34 }),
   );
   floor.rotation.x = -Math.PI / 2;
-  floor.position.y = -2.6;
+  floor.position.y = -1.7;
   floor.receiveShadow = true;
   scene.add(floor);
 
@@ -150,8 +196,12 @@ export function createHeroScene(canvas) {
     state.explode += (state.targetExplode - state.explode) * a;
     state.spin += (state.targetSpin - state.spin) * a;
 
-    setExplode(hand, state.explode);
-    setCurl(hand, state.curl);
+    if (real) {
+      setAssemblyExplode(real, state.explode);
+    } else {
+      setExplode(hand, state.explode);
+      setCurl(hand, state.curl);
+    }
 
     // Wide screens put the copy on the left, so bias the camera target left to
     // push the model into the right half. Narrow screens centre it and let the
@@ -175,7 +225,9 @@ export function createHeroScene(canvas) {
     target.set(bias, state.explode * 0.25, -0.6);
     camera.lookAt(target);
 
-    if (!REDUCED) hand.rotation.y = -0.5 + Math.sin(t * 0.00012) * 0.06;
+    const drift = REDUCED ? 0 : Math.sin(t * 0.00012) * 0.06;
+    if (real) real.rotation.y = -0.62 + drift;
+    else hand.rotation.y = -0.5 + drift;
 
     renderer.render(scene, camera);
   }

@@ -26,9 +26,14 @@ const body = html.match(/<body[^>]*>([\s\S]*?)<\/body>/)[1]
   .replace(/<link[^>]*rel="stylesheet"[^>]*crossorigin[^>]*>/g, '')
   .trim();
 
-const fonts = 'https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800'
-  + '&family=IBM+Plex+Mono:wght@400;500;600'
-  + '&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap';
+// The artifact is one file, so the mesh pack rides inline as base64 instead of
+// as two fetched side files.
+const packJson = readFileSync(join(dist, 'handpack.json'), 'utf8');
+const packB64 = readFileSync(join(dist, 'handpack.bin')).toString('base64');
+
+// Take the font link from the built HTML so the two never drift apart.
+const fonts = (html.match(/href="(https:\/\/fonts\.googleapis\.com\/css2[^"]+)"/) || [])[1];
+if (!fonts) throw new Error('no Google Fonts link found in dist/index.html');
 
 const page = `<title>EMG Robotic Hand</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -37,6 +42,10 @@ const page = `<title>EMG Robotic Hand</title>
 <style>
 ${css}
 </style>
+
+<script>
+window.__HANDPACK = { manifest: ${packJson}, b64: "${packB64}" };
+</script>
 
 ${body}
 

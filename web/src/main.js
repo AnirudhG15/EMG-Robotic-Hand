@@ -48,34 +48,34 @@ if (!REDUCED) {
 
 const BEATS = [
   {
-    at: 0, hue: 'var(--violet)', group: null,
-    eyebrow: 'Assembly', title: 'Inside the forearm',
-    body: 'The housing splits along its length. Everything that makes the hand work is mounted inside it — nothing sits in the fingers themselves.',
-    chips: ['Shell closed'],
+    at: 0, hue: 'var(--violet)', subs: [],
+    eyebrow: 'Assembly', title: 'Seventeen printed parts',
+    body: 'The real InMoov geometry, exactly as it comes off the print bed. Scroll and the whole arm comes apart.',
+    chips: ['Closed'],
   },
   {
-    at: 0.28, hue: 'var(--violet)', group: 'shell',
-    eyebrow: 'Shell', title: 'A 2 mm printed housing',
-    body: 'Roughly 350 grams of PLA, printed hollow with an open servo-access side, internal mounting bosses, and channels for the tendon lines.',
-    chips: ['forearm.shell.upper', 'forearm.shell.lower'],
+    at: 0.26, hue: 'var(--violet)', subs: ['shell'],
+    eyebrow: 'Forearm', title: 'A shell in four halves',
+    body: 'Two barrel sections, each printed as a top and bottom half, closed by an end cap. This is the volume the servos and the analog board live inside.',
+    chips: ['robpart2V4', 'robpart3V4', 'robpart4V4', 'robpart5V4', 'robcap3V2'],
   },
   {
-    at: 0.55, hue: 'var(--pink)', group: 'servo',
-    eyebrow: 'Actuation', title: 'Five servos, five tendons',
-    body: 'MG90S micro servos sit in a staggered bank to fit the taper of the forearm. Each pulls a braided line to one finger; elastic cord returns it.',
-    chips: ['servo.thumb', 'servo.index', 'servo.middle', 'servo.ring', 'servo.pinky'],
+    at: 0.48, hue: 'var(--violet)', subs: ['wrist', 'palm'],
+    eyebrow: 'Wrist and palm', title: 'Where the tendons turn',
+    body: 'Two wrist plates carry the rotation joint; the palm is a base plate and a top cover with the tendon channels routed between them.',
+    chips: ['WristlargeV4', 'WristsmallV4', 'topsurface6', 'topsurfaceUP6'],
   },
   {
-    at: 0.78, hue: 'var(--cyan)', group: 'board',
-    eyebrow: 'Electronics', title: 'The front end and the brain',
-    body: 'The analog board conditions the electrode signal; the ESP32-S3 digitises the envelope, applies the threshold, and drives all five PWM channels.',
-    chips: ['pcb.afe', 'mcu.esp32'],
+    at: 0.7, hue: 'var(--pink)', subs: ['finger'],
+    eyebrow: 'Digits', title: 'Five fingers, printed flat',
+    body: 'Each digit ships as a plate of loose phalanges and joint pins, assembled with the bolts and strung with braided line.',
+    chips: ['thumb5', 'Index3', 'Majeure3', 'ringfinger3', 'Auriculaire3', 'coverfinger1'],
   },
   {
-    at: 1, hue: 'var(--amber)', group: null,
-    eyebrow: 'Complete', title: 'Twenty-two parts',
-    body: 'Every piece named, with its own pivot and travel vector — the structure real InMoov geometry drops straight into.',
-    chips: ['Fully exploded'],
+    at: 0.88, hue: 'var(--cyan)', subs: ['electronics', 'hardware'],
+    eyebrow: 'Mounting', title: 'Bracket and fasteners',
+    body: 'A frame bracket carries the board inside the forearm; the bolts and spacers pin every finger joint.',
+    chips: ['ardiuinosupport', 'Bolt_entretoise7'],
   },
 ];
 
@@ -93,7 +93,7 @@ function setBeat(i) {
   const b = BEATS[i];
 
   bCard.style.setProperty('--beat-hue', b.hue);
-  hero.highlight(b.group);
+  hero.highlight(b.subs);
 
   const swap = () => {
     bEyebrow.textContent = b.eyebrow;
