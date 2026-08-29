@@ -20,7 +20,7 @@
     <span>EMG&nbsp;Hand</span>
   </a>
   <div class="nav-links" id="nav-links">
-    <a href="#build">Build</a>
+    <button type="button" data-scrollto="top">Explore</button>
     <button type="button" data-goto="chain">Signal</button>
     <button type="button" data-goto="parts">Parts</button>
     <button type="button" data-goto="decisions">Decisions</button>
@@ -48,11 +48,27 @@
   <!-- floating label that follows the hovered part -->
   <div class="hint" id="hover-hint" hidden aria-hidden="true"></div>
 
+  <!-- loader, removed once the mesh pack is decoded -->
+  <div class="loader" id="loader">
+    <div class="loader-bar"><i></i></div>
+    <p>Loading 17 printed parts</p>
+  </div>
+
+  <!-- parts index -->
+  <div class="index" id="index" hidden>
+    <div class="index-head">
+      <h2>All parts</h2>
+      <button type="button" class="index-close" id="index-close" aria-label="Close parts list">&times;</button>
+    </div>
+    <div class="index-list" id="index-list" role="listbox" aria-label="Parts of the hand"></div>
+  </div>
+
   <!-- controls -->
   <div class="stage-controls">
     <button type="button" class="ctl" id="ctl-xray" aria-pressed="false">
       <span class="ctl-dot"></span>See inside
     </button>
+    <button type="button" class="ctl" id="ctl-index" aria-expanded="false" aria-controls="index">All parts</button>
     <button type="button" class="ctl" id="ctl-reset">Reset view</button>
     <p class="ctl-tip">Drag to rotate · Click a part</p>
   </div>
@@ -90,14 +106,13 @@
   <div class="wrap">
     <span class="tag">Real geometry</span>
     <p>
-      Every part above is the actual printed mesh from <code>hardware/Right_Hand_Parts</code> —
-      17 files, 215,000 triangles, packed to 1.9&nbsp;MB. The digits arrive as print
-      plates of loose phalanges, which is why they read as clusters rather than
-      assembled fingers. Servos, boards and electrodes are bought parts, so
-      they are modelled from their package dimensions in Components below.
+      Every printed part above is the actual mesh from
+      <code>hardware/Right_Hand_Parts</code> — 17 files, 215,000 triangles,
+      packed to 1.9&nbsp;MB. The digits ship as print plates of loose phalanges
+      and are reassembled here piece by piece. Servos, boards and electrodes are
+      bought parts, modelled from their package dimensions.
     </p>
   </div>
-</div>
 </div>
 
 <!-- ============================================ tabs -->

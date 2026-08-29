@@ -3,6 +3,7 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { GTAOPass } from 'three/examples/jsm/postprocessing/GTAOPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { loadHandPack } from './handpack.js';
 import { buildHandAssembly, setExplode } from './assembly.js';
@@ -15,7 +16,7 @@ const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const ease = (cur, target, dt, speed) =>
   cur + (target - cur) * (1 - Math.exp(-dt * speed));
 
-export function createExplorer(canvas, { onHover, onSelect } = {}) {
+export function createExplorer(canvas, { onHover, onSelect, onReady, onError } = {}) {
   const renderer = new THREE.WebGLRenderer({
     canvas, antialias: true, alpha: true, powerPreference: 'high-performance',
   });
@@ -72,6 +73,19 @@ export function createExplorer(canvas, { onHover, onSelect } = {}) {
 
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
+
+  // Ambient occlusion is what stops this reading as CG. Without it the gaps
+  // between fingers, the inside of the shell and every joint crevice stay
+  // uniformly lit and printed plastic has no depth. Radius is in scene units,
+  // so it is set in millimetres like everything else.
+  const gtao = new GTAOPass(scene, camera, 1, 1);
+  gtao.output = GTAOPass.OUTPUT.Default;
+  gtao.blendIntensity = 0.85;
+  gtao.updateGtaoMaterial({
+    radius: 14, distanceExponent: 1.4, thickness: 12,
+    scale: 1.05, samples: 16, screenSpaceRadius: false,
+  });
+  composer.addPass(gtao);
   // Threshold above 1.0 so only emissive highlights bloom; printed PLA lit by
   // the key light must not.
   const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.6, 1.15);
@@ -89,12 +103,16 @@ export function createExplorer(canvas, { onHover, onSelect } = {}) {
     xray: 0, targetXray: 0,
     autoSpin: true,
   };
+  // Remembers whether the viewer asked for x-ray, so auto-opening the shell to
+  // reveal an enclosed part can be undone without overriding their choice.
+  let userXray = false;
 
   let hand = null;
   let items = [];
   let hovered = null;
   let selected = null;
   let lastT = 0;
+  let ready = false;
 
   const BASE = { color: 0x9098ad, roughness: 0.62, metalness: 0.04 };
 
@@ -120,8 +138,17 @@ export function createExplorer(canvas, { onHover, onSelect } = {}) {
       });
       it.userData.mat = it.userData.sub === 'electronics' ? null : mat;
     }
-    if (onHover) onHover(null); // signal ready
-  }).catch((e) => console.warn('handpack failed', e));
+    ready = true;
+    if (onReady) onReady(items.map((it) => ({
+      id: it.userData.id,
+      label: it.userData.label,
+      sub: it.userData.sub,
+      hue: it.userData.hue,
+    })));
+  }).catch((e) => {
+    console.warn('handpack failed', e);
+    if (onError) onError(e);
+  });
 
   /* ------------------------------------------------------------ picking */
 
@@ -211,9 +238,15 @@ export function createExplorer(canvas, { onHover, onSelect } = {}) {
     if (!selected) {
       state.targetLift = -70;
       state.targetDist = 900;
+      state.targetXray = userXray ? 1 : 0;
       return;
     }
     state.autoSpin = false;
+
+    // Electronics live inside the forearm. Selecting one and leaving the shell
+    // opaque just puts the camera against a wall, so open it automatically.
+    if (selected.userData.sub === 'electronics') state.targetXray = 1;
+    else state.targetXray = userXray ? 1 : 0;
 
     // Frame by the part's own size. A fingertip and a forearm shell differ by
     // an order of magnitude, so a fixed distance crops one and loses the other.
@@ -234,6 +267,7 @@ export function createExplorer(canvas, { onHover, onSelect } = {}) {
     if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
       renderer.setSize(w, h, false);
       composer.setSize(w, h);
+      gtao.setSize(w, h);
       bloom.setSize(w, h);
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
@@ -292,10 +326,20 @@ export function createExplorer(canvas, { onHover, onSelect } = {}) {
     composer.render();
   }
 
+  const byId = (id) => items.find((it) => it.userData.id === id) || null;
+
   return {
     state, frame, resize, select,
+    get ready() { return ready; },
+    selectById: (id) => select(byId(id)),
+    hoverById: (id) => {
+      const it = id ? byId(id) : null;
+      if (it === hovered) return;
+      hovered = it;
+      if (onHover) onHover(it ? it.userData : null);
+    },
     setExplode: (v) => { state.targetExplode = v; },
-    setXray: (v) => { state.targetXray = v; },
+    setXray: (v) => { userXray = v > 0.5; state.targetXray = v; },
     resetView: () => {
       select(null);
       state.targetYaw = -0.35; state.targetPitch = 0.06; state.autoSpin = true;

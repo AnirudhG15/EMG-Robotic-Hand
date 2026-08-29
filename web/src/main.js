@@ -73,9 +73,84 @@ function showInspect(info) {
   }
 }
 
+/* ---------------------------------------------------------- parts index */
+
+const SUB_LABEL = {
+  shell: 'Forearm', wrist: 'Wrist', palm: 'Palm', finger: 'Digits',
+  cover: 'Covers', electronics: 'Electronics', hardware: 'Hardware',
+};
+const SUB_ORDER = ['finger', 'cover', 'palm', 'wrist', 'shell', 'electronics', 'hardware'];
+
+const indexPanel = $('#index');
+const indexList = $('#index-list');
+const indexBtn = $('#ctl-index');
+const loader = $('#loader');
+
+function buildIndex(parts) {
+  const hex = (h) => `#${h.toString(16).padStart(6, '0')}`;
+  const groups = new Map();
+  for (const p of parts) {
+    if (!groups.has(p.sub)) groups.set(p.sub, []);
+    groups.get(p.sub).push(p);
+  }
+  indexList.innerHTML = SUB_ORDER
+    .filter((sub) => groups.has(sub))
+    .map((sub) => {
+      const rows = groups.get(sub).map((p) => `
+        <button type="button" class="index-item" role="option" aria-selected="false"
+                data-id="${p.id}" style="--i-hue: ${hex(p.hue)}">
+          <span class="index-swatch" aria-hidden="true"></span>${p.label}
+        </button>`).join('');
+      const h = hex(groups.get(sub)[0].hue);
+      return `<p class="index-group" style="--g-hue: ${h}">${SUB_LABEL[sub] || sub} · ${groups.get(sub).length}</p>${rows}`;
+    }).join('');
+}
+
+indexList.addEventListener('click', (e) => {
+  const b = e.target.closest('.index-item');
+  if (b) explorer.selectById(b.dataset.id);
+});
+indexList.addEventListener('pointerover', (e) => {
+  const b = e.target.closest('.index-item');
+  explorer.hoverById(b ? b.dataset.id : null);
+});
+indexList.addEventListener('pointerleave', () => explorer.hoverById(null));
+// Keyboard users get the same preview as the mouse.
+indexList.addEventListener('focusin', (e) => {
+  const b = e.target.closest('.index-item');
+  if (b) explorer.hoverById(b.dataset.id);
+});
+
+function toggleIndex(open) {
+  indexPanel.hidden = !open;
+  indexBtn.setAttribute('aria-expanded', String(open));
+  document.body.setAttribute('data-index-open', String(open));
+  if (open && !REDUCED) {
+    gsap.fromTo(indexPanel, { opacity: 0, y: 14 },
+      { opacity: 1, y: 0, duration: 0.34, ease: 'power3.out' });
+  }
+}
+indexBtn.addEventListener('click', () => toggleIndex(indexPanel.hidden));
+$('#index-close').addEventListener('click', () => toggleIndex(false));
+
+/* ---------------------------------------------------------------- scene */
+
 const explorer = createExplorer(stageCanvas, {
   onHover: showHint,
-  onSelect: showInspect,
+  onSelect: (info) => {
+    showInspect(info);
+    if (info) xrayBtn.setAttribute('aria-pressed', String(info.sub === 'electronics' || xray));
+    $$('.index-item').forEach((b) => b.setAttribute(
+      'aria-selected', String(!!info && b.dataset.id === info.id)));
+  },
+  onReady: (parts) => {
+    buildIndex(parts);
+    loader.setAttribute('data-done', 'true');
+    setTimeout(() => { loader.hidden = true; }, 700);
+  },
+  onError: () => {
+    loader.querySelector('p').textContent = 'Could not load the model';
+  },
 });
 scenes.push({ canvas: stageCanvas, frame: explorer.frame });
 
@@ -169,6 +244,11 @@ tablist.addEventListener('keydown', (e) => {
 
 // Nav buttons open the matching tab, then scroll to it.
 $('#nav-links').addEventListener('click', (e) => {
+  const scrollTo = e.target.closest('[data-scrollto]');
+  if (scrollTo) {
+    window.scrollTo({ top: 0, behavior: REDUCED ? 'auto' : 'smooth' });
+    return;
+  }
   const b = e.target.closest('[data-goto]');
   if (!b) return;
   selectTab(b.dataset.goto);
