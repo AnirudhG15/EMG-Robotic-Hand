@@ -243,10 +243,28 @@ export function buildHand() {
   FINGERS.forEach((f) => fingerRoot.add(buildFinger(f, parts)));
   hand.add(fingerRoot);
 
-  // Cache rest positions so explode/collapse is a pure lerp.
+  // Cache rest positions so explode/collapse is a pure lerp, and give every
+  // part a cascade slot and a twist. The stagger is what makes the explosion
+  // read as a sequence — shell lifts, servos follow in a wave, boards last —
+  // instead of twenty-two parts moving in lockstep.
+  let servoIdx = 0;
   parts.explodable.forEach((o) => {
     o.userData.rest = o.position.clone();
+    o.userData.restRotY = o.rotation.y;
     if (!o.userData.explode) o.userData.explode = new THREE.Vector3();
+
+    const n = o.name || '';
+    let stagger = 0.06, twist = 0;
+    if (n.startsWith('forearm.shell')) { stagger = 0; twist = n.endsWith('upper') ? 0.07 : -0.07; }
+    else if (n === 'palm.core') stagger = 0.04;
+    else if (n.startsWith('finger.')) stagger = 0.02;
+    else if (n === 'wrist') stagger = 0.10;
+    else if (n.startsWith('servo.')) { stagger = 0.16 + (servoIdx++) * 0.055; twist = 0.24; }
+    else if (n === 'palm.routing') { stagger = 0.30; twist = 0.12; }
+    else if (n === 'pcb.afe') { stagger = 0.42; twist = -0.16; }
+    else if (n === 'mcu.esp32') { stagger = 0.50; twist = 0.20; }
+    o.userData.stagger = stagger;
+    o.userData.twist = twist;
   });
 
   hand.userData.parts = parts;
@@ -254,16 +272,23 @@ export function buildHand() {
 }
 
 // t = 0 assembled, t = 1 fully exploded.
+// Each part runs its own eased timeline offset by its cascade slot, plus a
+// slight twist along the way, so the assembly opens as a wave rather than a
+// single rigid step.
+const MAX_STAGGER = 0.5;
 export function setExplode(hand, t) {
-  const e = t * t * (3 - 2 * t); // smoothstep
   hand.userData.parts.explodable.forEach((o) => {
+    let k = t * (1 + MAX_STAGGER) - (o.userData.stagger || 0);
+    k = k < 0 ? 0 : k > 1 ? 1 : k;
+    k = k * k * (3 - 2 * k); // smoothstep per part
     const rest = o.userData.rest;
     const off = o.userData.explode;
     o.position.set(
-      rest.x + off.x * e,
-      rest.y + off.y * e,
-      rest.z + off.z * e,
+      rest.x + off.x * k,
+      rest.y + off.y * k,
+      rest.z + off.z * k,
     );
+    if (o.userData.twist) o.rotation.y = o.userData.restRotY + o.userData.twist * k;
   });
 }
 

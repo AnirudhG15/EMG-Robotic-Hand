@@ -117,8 +117,18 @@ export function createHeroScene(canvas) {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  const state = { explode: 0, curl: 0, spin: 0, pointer: new THREE.Vector2() };
+  // Scroll writes targets; the frame loop eases the live values toward them
+  // with a time-based exponential. This is what makes the animation feel
+  // fluid — the 3D state glides between scroll events instead of stepping
+  // with them, and fast flicks settle instead of snapping.
+  const state = {
+    explode: 0, targetExplode: 0,
+    curl: 0,
+    spin: -0.85, targetSpin: 0,
+    pointer: new THREE.Vector2(),
+  };
   const target = new THREE.Vector3();
+  let lastT = 0;
 
   function resize() {
     const w = canvas.clientWidth || 1;
@@ -132,6 +142,14 @@ export function createHeroScene(canvas) {
 
   function frame(t) {
     resize();
+
+    const dt = Math.min(50, lastT ? t - lastT : 16.7);
+    lastT = t;
+    // ~140 ms response; REDUCED snaps instantly so motion never lags input.
+    const a = REDUCED ? 1 : 1 - Math.exp(-dt * 0.0072);
+    state.explode += (state.targetExplode - state.explode) * a;
+    state.spin += (state.targetSpin - state.spin) * a;
+
     setExplode(hand, state.explode);
     setCurl(hand, state.curl);
 

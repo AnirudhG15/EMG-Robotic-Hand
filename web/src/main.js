@@ -38,9 +38,7 @@ if (!REDUCED) {
   gsap.from('.hero-inner > *', {
     y: 26, opacity: 0, duration: 0.9, stagger: 0.09, ease: 'power2.out', delay: 0.15,
   });
-  gsap.fromTo(hero.state,
-    { spin: -0.85, curl: 0.55 },
-    { spin: 0, curl: 0, duration: 2.6, ease: 'power2.out' });
+  gsap.fromTo(hero.state, { curl: 0.55 }, { curl: 0, duration: 2.4, ease: 'power3.out' });
 }
 
 /* ======================================================== exploded view */
@@ -119,11 +117,11 @@ ScrollTrigger.create({
   trigger: '#build',
   start: 'top top',
   end: 'bottom bottom',
-  scrub: REDUCED ? false : 0.7,
+  scrub: REDUCED ? false : 1.1,
   onUpdate: (self) => {
     const p = self.progress;
-    hero.state.explode = p;
-    hero.state.spin = p * 1.15;
+    hero.state.targetExplode = p;
+    hero.state.targetSpin = p * 1.15;
     bFill.style.height = `${p * 100}%`;
     let i = 0;
     for (let k = 0; k < BEATS.length; k++) if (p >= BEATS[k].at - 0.02) i = k;

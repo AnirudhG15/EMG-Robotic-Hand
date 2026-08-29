@@ -18,22 +18,22 @@
   --rule:      #2C2952;
   --rule-hi:   #3E3A6B;
 
-  --ink:       #F4F3FF;
-  --ink-dim:   #ADA8CE;
-  --ink-faint: #736DA0;
+  --ink:       #F7F6FF;
+  --ink-dim:   #C9C4E8;
+  --ink-faint: #8B85B8;
 
   /* Subsystem hues — matched L and C, varied hue only. */
-  --amber:  #FF9A4D;
-  --lime:   #A8E64A;
-  --cyan:   #35CFE8;
-  --pink:   #FF7BB0;
-  --violet: #A78BFA;
+  --amber:  #FFA35C;
+  --lime:   #B7F056;
+  --cyan:   #45D9F0;
+  --pink:   #FF8ABB;
+  --violet: #B49AFF;
 
   /* The signal path owns amber; it is the page's primary accent. */
   --signal: var(--amber);
 
-  --font-display: Anybody, "Archivo", "Helvetica Neue", Arial, sans-serif;
-  --font-body: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-display: Syne, "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --measure: 66ch;
@@ -85,10 +85,12 @@ h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
 
 .sec-head { max-width: var(--measure); margin-bottom: clamp(2.2rem, 4.5vw, 3.4rem); }
 .sec-head h2 {
-  font-size: var(--s2); font-weight: 800; letter-spacing: -.028em;
-  line-height: 1.05; margin-bottom: 1rem;
+  font-size: var(--s2); font-weight: 800; letter-spacing: -.024em;
+  line-height: 1.08; margin-bottom: 1rem;
+  background: linear-gradient(115deg, #FFFFFF 30%, var(--violet) 115%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.sec-lede { color: var(--ink-dim); font-size: var(--s1); line-height: 1.5; margin: 0; }
+.sec-lede { color: var(--ink-dim); font-size: var(--s1); line-height: 1.52; font-weight: 500; margin: 0; }
 
 section { position: relative; }
 
@@ -184,16 +186,19 @@ section { position: relative; }
   padding-block: clamp(3rem, 8vh, 5rem);
 }
 .hero h1 {
-  font-size: var(--s4); font-weight: 800; letter-spacing: -.04em;
-  line-height: .94; margin-bottom: 1.5rem; max-width: 15ch;
+  font-size: var(--s4); font-weight: 800; letter-spacing: -.032em;
+  line-height: .98; margin-bottom: 1.5rem; max-width: 15ch;
+  background: linear-gradient(120deg, #FFFFFF 45%, #C9C4E8 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .hero h1 em {
   font-style: normal;
-  color: var(--signal);
-  text-shadow: 0 0 52px color-mix(in srgb, var(--signal) 55%, transparent);
+  background: linear-gradient(100deg, var(--amber) 20%, var(--pink) 105%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 34px color-mix(in srgb, var(--amber) 45%, transparent));
 }
 .lede {
-  max-width: 44ch; font-size: var(--s1); line-height: 1.5;
+  max-width: 44ch; font-size: var(--s1); line-height: 1.52; font-weight: 500;
   color: var(--ink-dim); margin: 0 0 2.4rem;
 }
 
@@ -312,8 +317,8 @@ section { position: relative; }
 .tablist button {
   position: relative;
   background: none; border: 0; cursor: pointer;
-  font-family: var(--font-mono); font-size: .8rem; font-weight: 500;
-  letter-spacing: .1em; text-transform: uppercase;
+  font-family: var(--font-display); font-size: .95rem; font-weight: 700;
+  letter-spacing: .05em; text-transform: uppercase;
   color: var(--ink-faint);
   padding: .9rem 1.1rem;
   border-bottom: 2px solid transparent;

@@ -10,9 +10,9 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
-parts/
+/lib/
+/lib64/
+/parts/
 sdist/
 var/
 wheels/
@@ -61,6 +61,10 @@ pcb/fp-lib-table
 *.hex
 build/
 .vscode/.browse.c_cpp_database
+
+# CAD — hardware/parts holds the real mesh files; never ignore them
+!hardware/parts/
+!hardware/parts/**
 
 # CAD
 *.step-backup
