@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 
-// Loads the packed real InMoov geometry (tools/pack-meshes.py).
+// Loads the packed InMoov geometry (tools/pack-meshes.py).
 //
 // Positions arrive quantized to Int16 against each island's own bounding box,
-// so a part's precision scales with its size rather than with the scene. Undo
-// is a dequantize plus computeVertexNormals — the OBJs carry no normals, and
-// recomputing gives clean faceted shading on printed parts.
+// so precision scales with the island rather than with the scene. Undo is a
+// dequantize plus computeVertexNormals — the OBJs carry no normals, and
+// recomputing gives the crisp faceted shading printed parts actually have.
+//
+// Islands are exposed INDIVIDUALLY rather than merged. The source files are
+// print plates: a finger arrives as six loose phalanx pieces laid out in a grid
+// on the bed. Assembling a real hand means moving those pieces relative to each
+// other, which is only possible if each one is its own mesh.
 
 const DEQ = 1 / 65535;
 
@@ -16,73 +21,71 @@ function islandGeometry(buf, isl) {
   const sx = isl.max[0] - mnx;
   const sy = isl.max[1] - mny;
   const sz = isl.max[2] - mnz;
+  // Centre each island on its own centroid so it can be posed by its middle.
+  const cx = mnx + sx / 2, cy = mny + sy / 2, cz = mnz + sz / 2;
 
   for (let i = 0; i < isl.nv; i++) {
     const o = i * 3;
-    pos[o] = mnx + (q[o] + 32768) * DEQ * sx;
-    pos[o + 1] = mny + (q[o + 1] + 32768) * DEQ * sy;
-    pos[o + 2] = mnz + (q[o + 2] + 32768) * DEQ * sz;
+    pos[o]     = mnx + (q[o]     + 32768) * DEQ * sx - cx;
+    pos[o + 1] = mny + (q[o + 1] + 32768) * DEQ * sy - cy;
+    pos[o + 2] = mnz + (q[o + 2] + 32768) * DEQ * sz - cz;
   }
 
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setIndex(new THREE.BufferAttribute(new Uint16Array(buf, isl.i, isl.nt * 3), 1));
   g.computeVertexNormals();
-  return g;
+  return { geometry: g, center: [cx, cy, cz], size: [sx, sy, sz] };
 }
 
-// Returns Map<partId, { group, size, center }>. Each group holds one mesh per
-// island, already recentred on the part's own bounds so callers can position by
-// the part rather than by wherever it sat on the print plate.
-export async function loadHandPack(material) {
+async function fetchPack() {
   // The single-file build inlines the pack on window rather than shipping two
   // side files, so prefer that when present.
-  let manifest, buf;
   if (typeof window !== 'undefined' && window.__HANDPACK) {
-    manifest = window.__HANDPACK.manifest;
     const bin = atob(window.__HANDPACK.b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    buf = bytes.buffer;
-  } else {
-    [manifest, buf] = await Promise.all([
-      fetch('handpack.json').then((r) => r.json()),
-      fetch('handpack.bin').then((r) => r.arrayBuffer()),
-    ]);
+    return [window.__HANDPACK.manifest, bytes.buffer];
   }
+  return Promise.all([
+    fetch('handpack.json').then((r) => r.json()),
+    fetch('handpack.bin').then((r) => r.arrayBuffer()),
+  ]);
+}
 
+// Returns Map<partId, { islands: [{ mesh, size, center }], size, center }>.
+// Each island mesh sits at its as-printed position, so a part rendered straight
+// out of here looks exactly like its print plate.
+export async function loadHandPack(material) {
+  const [manifest, buf] = await fetchPack();
   const out = new Map();
-  for (const part of manifest.parts) {
-    const group = new THREE.Group();
-    group.name = part.id;
 
+  for (const part of manifest.parts) {
+    const islands = [];
     const mn = [Infinity, Infinity, Infinity];
     const mx = [-Infinity, -Infinity, -Infinity];
+
     for (const isl of part.islands) {
+      const { geometry, center, size } = islandGeometry(buf, isl);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(center[0], center[1], center[2]);
+      mesh.castShadow = true;
+      mesh.receiveShadow = false;
+      islands.push({ mesh, size, center, verts: isl.nv, tris: isl.nt });
       for (let i = 0; i < 3; i++) {
         if (isl.min[i] < mn[i]) mn[i] = isl.min[i];
         if (isl.max[i] > mx[i]) mx[i] = isl.max[i];
       }
     }
-    const ctr = mn.map((v, i) => (v + mx[i]) / 2);
 
-    for (const isl of part.islands) {
-      const m = new THREE.Mesh(islandGeometry(buf, isl), material);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      group.add(m);
-    }
-    group.position.set(-ctr[0], -ctr[1], -ctr[2]);
-
-    const holder = new THREE.Group();
-    holder.name = part.id;
-    holder.add(group);
+    // Longest island first — the load-bearing piece of a print plate.
+    islands.sort((a, b) => Math.max(...b.size) - Math.max(...a.size));
 
     out.set(part.id, {
-      group: holder,
+      id: part.id,
+      islands,
       size: mx.map((v, i) => v - mn[i]),
-      center: ctr,
-      islands: part.islands.length,
+      center: mn.map((v, i) => (v + mx[i]) / 2),
     });
   }
   return out;

@@ -30,54 +30,60 @@
 
 <main id="main">
 
-<!-- ============================================ hero -->
-<section class="hero" id="top">
-  <canvas class="hero-canvas" id="hero-canvas" aria-hidden="true"></canvas>
-  <div class="hero-grid" aria-hidden="true"></div>
+<!-- ============================================ explorer -->
+<section class="stage" id="top">
+  <canvas class="stage-canvas" id="hand-canvas" aria-hidden="true"></canvas>
+  <div class="stage-grid" aria-hidden="true"></div>
 
-  <div class="hero-inner">
+  <div class="stage-head">
     <p class="eyebrow">M468 Independent Study · Semester 1</p>
-    <h1>
-      A robotic hand<br>
-      driven by <em>muscle signals</em>
-    </h1>
+    <h1>A robotic hand<br>driven by <em>muscle signals</em></h1>
     <p class="lede">
-      Three electrodes read 20 microvolts off the forearm. A six-stage analog
-      front end amplifies them nine hundred and ninety times. Five servos answer.
+      Three electrodes read 20&nbsp;microvolts off the forearm. A six-stage
+      analog front end amplifies them nine hundred and ninety times.
+      Five servos answer.
     </p>
-    <div class="hero-stats">
-      <div style="--stat-hue: var(--amber)"><b>×990</b><span>cascade gain</span></div>
-      <div style="--stat-hue: var(--lime)"><b>20 µV</b><span>input floor</span></div>
-      <div style="--stat-hue: var(--cyan)"><b>6</b><span>analog stages</span></div>
-      <div style="--stat-hue: var(--pink)"><b>5</b><span>actuated fingers</span></div>
-    </div>
+  </div>
+
+  <!-- floating label that follows the hovered part -->
+  <div class="hint" id="hover-hint" hidden aria-hidden="true"></div>
+
+  <!-- controls -->
+  <div class="stage-controls">
+    <button type="button" class="ctl" id="ctl-xray" aria-pressed="false">
+      <span class="ctl-dot"></span>See inside
+    </button>
+    <button type="button" class="ctl" id="ctl-reset">Reset view</button>
+    <p class="ctl-tip">Drag to rotate · Click a part</p>
+  </div>
+
+  <!-- selection panel -->
+  <aside class="inspect" id="inspect" hidden aria-live="polite">
+    <button type="button" class="inspect-close" id="inspect-close" aria-label="Close part details">&times;</button>
+    <p class="inspect-kind" id="inspect-kind"></p>
+    <h2 class="inspect-title" id="inspect-title"></h2>
+    <p class="inspect-body" id="inspect-body"></p>
+    <h3 class="inspect-h">Why it is built this way</h3>
+    <p class="inspect-why" id="inspect-why"></p>
+    <dl class="inspect-facts" id="inspect-facts"></dl>
+  </aside>
+
+  <div class="stage-stats" id="stage-stats">
+    <div style="--stat-hue: var(--amber)"><b>×990</b><span>cascade gain</span></div>
+    <div style="--stat-hue: var(--lime)"><b>20 µV</b><span>input floor</span></div>
+    <div style="--stat-hue: var(--cyan)"><b>6</b><span>analog stages</span></div>
+    <div style="--stat-hue: var(--pink)"><b>5</b><span>actuated fingers</span></div>
   </div>
 
   <div class="scroll-cue" aria-hidden="true">
-    <span>Scroll to open</span>
+    <span>Scroll to take it apart</span>
     <div class="scroll-line"></div>
   </div>
 </section>
 
-<!-- ============================================ exploded view -->
-<section class="build" id="build">
-  <div class="build-sticky">
-    <div class="build-copy">
-      <div class="build-card" id="build-card">
-        <p class="eyebrow" id="build-eyebrow">Assembly</p>
-        <h2 id="build-title">Inside the forearm</h2>
-        <p id="build-body">
-          The housing splits along its length. Everything that makes the hand
-          work is mounted inside it.
-        </p>
-        <div class="build-readout" id="build-readout"></div>
-      </div>
-    </div>
-    <div class="build-progress" aria-hidden="true">
-      <div class="build-progress-fill" id="build-progress-fill"></div>
-    </div>
-  </div>
-  <div class="build-track" id="build-track"></div>
+<!-- scroll track that drives the explode -->
+<section class="build" id="build" aria-hidden="true">
+  <div class="build-track"></div>
 </section>
 
 <div class="placeholder-note">

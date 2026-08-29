@@ -1,6 +1,8 @@
 import gsap from 'gsap';
 import ScrollTrigger from 'gsap/ScrollTrigger';
-import { createHeroScene, createPartScene, REDUCED } from './three/scene.js';
+import { createPartScene } from './three/scene.js';
+import { createExplorer, REDUCED } from './three/explorer.js';
+import { HAND_INFO } from './data/hand-info.js';
 import { PARTS, GROUPS, GROUP_HEX, BOM, DECISIONS, CHAIN } from './data/parts.js';
 
 gsap.registerPlugin(ScrollTrigger);
@@ -23,95 +25,90 @@ function loop(t) {
   requestAnimationFrame(loop);
 }
 
-/* ================================================================= hero */
+/* ============================================================= explorer */
 
-const heroCanvas = $('#hero-canvas');
-const hero = createHeroScene(heroCanvas);
-scenes.push({ canvas: heroCanvas, frame: hero.frame });
+const stageCanvas = $('#hand-canvas');
+const hint = $('#hover-hint');
+const inspect = $('#inspect');
+const stats = $('#stage-stats');
+const cue = $('.scroll-cue');
+
+let lastPointer = { x: 0, y: 0 };
+stageCanvas.addEventListener('pointermove', (e) => {
+  lastPointer = { x: e.clientX, y: e.clientY };
+}, { passive: true });
+
+function showHint(info) {
+  if (!info) { hint.hidden = true; return; }
+  const r = stageCanvas.getBoundingClientRect();
+  hint.hidden = false;
+  hint.textContent = info.label;
+  hint.style.setProperty('--hint-hue', `#${info.hue.toString(16).padStart(6, '0')}`);
+  hint.style.left = `${lastPointer.x - r.left}px`;
+  hint.style.top = `${lastPointer.y - r.top}px`;
+}
+
+function showInspect(info) {
+  const open = !!info;
+  stats.setAttribute('data-hidden', String(open));
+  if (!open) { inspect.hidden = true; return; }
+
+  const d = HAND_INFO[info.info];
+  if (!d) { inspect.hidden = true; return; }
+  const hue = `#${info.hue.toString(16).padStart(6, '0')}`;
+
+  inspect.hidden = false;
+  inspect.style.setProperty('--sel-hue', hue);
+  $('#inspect-kind').textContent = d.kind;
+  $('#inspect-title').textContent = info.label || d.title;
+  $('#inspect-body').textContent = d.body;
+  $('#inspect-why').textContent = d.why;
+  $('#inspect-facts').innerHTML = d.facts
+    .map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
+
+  if (!REDUCED) {
+    gsap.fromTo(inspect,
+      { opacity: 0, x: 24 },
+      { opacity: 1, x: 0, duration: 0.42, ease: 'power3.out' });
+  }
+}
+
+const explorer = createExplorer(stageCanvas, {
+  onHover: showHint,
+  onSelect: showInspect,
+});
+scenes.push({ canvas: stageCanvas, frame: explorer.frame });
+
+$('#inspect-close').addEventListener('click', () => explorer.select(null));
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') explorer.select(null);
+});
+
+const xrayBtn = $('#ctl-xray');
+let xray = false;
+xrayBtn.addEventListener('click', () => {
+  xray = !xray;
+  xrayBtn.setAttribute('aria-pressed', String(xray));
+  explorer.setXray(xray ? 1 : 0);
+});
+
+$('#ctl-reset').addEventListener('click', () => {
+  explorer.resetView();
+  xray = false;
+  xrayBtn.setAttribute('aria-pressed', 'false');
+  explorer.setXray(0);
+});
 
 if (!REDUCED) {
-  window.addEventListener('pointermove', (e) => {
-    hero.state.pointer.x = (e.clientX / window.innerWidth - 0.5) * 2;
-    hero.state.pointer.y = (e.clientY / window.innerHeight - 0.5) * 2;
-  }, { passive: true });
-
-  gsap.from('.hero-inner > *', {
-    y: 26, opacity: 0, duration: 0.9, stagger: 0.09, ease: 'power2.out', delay: 0.15,
+  gsap.from('.stage-head > *', {
+    y: 26, opacity: 0, duration: 0.9, stagger: 0.09, ease: 'power3.out', delay: 0.2,
   });
-  gsap.fromTo(hero.state, { curl: 0.55 }, { curl: 0, duration: 2.4, ease: 'power3.out' });
-}
-
-/* ======================================================== exploded view */
-// Each beat highlights one subsystem, and `hue` drives the card accent, the
-// chips, and the emissive rim on the matching 3D parts — so the colour in the
-// card and the colour in the model are the same statement.
-
-const BEATS = [
-  {
-    at: 0, hue: 'var(--violet)', subs: [],
-    eyebrow: 'Assembly', title: 'Seventeen printed parts',
-    body: 'The real InMoov geometry, exactly as it comes off the print bed. Scroll and the whole arm comes apart.',
-    chips: ['Closed'],
-  },
-  {
-    at: 0.26, hue: 'var(--violet)', subs: ['shell'],
-    eyebrow: 'Forearm', title: 'A shell in four halves',
-    body: 'Two barrel sections, each printed as a top and bottom half, closed by an end cap. This is the volume the servos and the analog board live inside.',
-    chips: ['robpart2V4', 'robpart3V4', 'robpart4V4', 'robpart5V4', 'robcap3V2'],
-  },
-  {
-    at: 0.48, hue: 'var(--violet)', subs: ['wrist', 'palm'],
-    eyebrow: 'Wrist and palm', title: 'Where the tendons turn',
-    body: 'Two wrist plates carry the rotation joint; the palm is a base plate and a top cover with the tendon channels routed between them.',
-    chips: ['WristlargeV4', 'WristsmallV4', 'topsurface6', 'topsurfaceUP6'],
-  },
-  {
-    at: 0.7, hue: 'var(--pink)', subs: ['finger'],
-    eyebrow: 'Digits', title: 'Five fingers, printed flat',
-    body: 'Each digit ships as a plate of loose phalanges and joint pins, assembled with the bolts and strung with braided line.',
-    chips: ['thumb5', 'Index3', 'Majeure3', 'ringfinger3', 'Auriculaire3', 'coverfinger1'],
-  },
-  {
-    at: 0.88, hue: 'var(--cyan)', subs: ['electronics', 'hardware'],
-    eyebrow: 'Mounting', title: 'Bracket and fasteners',
-    body: 'A frame bracket carries the board inside the forearm; the bolts and spacers pin every finger joint.',
-    chips: ['ardiuinosupport', 'Bolt_entretoise7'],
-  },
-];
-
-const bCard = $('#build-card');
-const bEyebrow = $('#build-eyebrow');
-const bTitle = $('#build-title');
-const bBody = $('#build-body');
-const bReadout = $('#build-readout');
-const bFill = $('#build-progress-fill');
-
-let activeBeat = -1;
-function setBeat(i) {
-  if (i === activeBeat) return;
-  activeBeat = i;
-  const b = BEATS[i];
-
-  bCard.style.setProperty('--beat-hue', b.hue);
-  hero.highlight(b.subs);
-
-  const swap = () => {
-    bEyebrow.textContent = b.eyebrow;
-    bTitle.textContent = b.title;
-    bBody.textContent = b.body;
-    bReadout.innerHTML = b.chips.map((c) => `<span>${c}</span>`).join('');
-  };
-
-  if (REDUCED) { swap(); return; }
-  gsap.to(bCard.children, {
-    opacity: 0, y: -8, duration: 0.2, stagger: 0.03, ease: 'power1.in',
-    onComplete: () => {
-      swap();
-      gsap.to(bCard.children, { opacity: 1, y: 0, duration: 0.34, stagger: 0.05, ease: 'power2.out' });
-    },
+  gsap.from('.stage-controls', {
+    opacity: 0, duration: 0.8, delay: 0.9, ease: 'power2.out', clearProps: 'opacity',
   });
 }
-setBeat(0);
+
+/* -------------------------------------------------- scroll drives explode */
 
 ScrollTrigger.create({
   trigger: '#build',
@@ -120,22 +117,13 @@ ScrollTrigger.create({
   scrub: REDUCED ? false : 1.1,
   onUpdate: (self) => {
     const p = self.progress;
-    hero.state.targetExplode = p;
-    hero.state.targetSpin = p * 1.15;
-    bFill.style.height = `${p * 100}%`;
-    let i = 0;
-    for (let k = 0; k < BEATS.length; k++) if (p >= BEATS[k].at - 0.02) i = k;
-    setBeat(i);
+    explorer.setExplode(p);
+    cue.setAttribute('data-hidden', String(p > 0.02));
+    // The copy steps aside once parts start moving through where it sits.
+    const head = $('.stage-head');
+    head.style.opacity = String(Math.max(0, 1 - p * 3.4));
+    head.style.transform = `translateY(${-p * 26}px)`;
   },
-});
-
-ScrollTrigger.create({
-  trigger: '#top',
-  start: 'top top',
-  endTrigger: '#build',
-  end: 'bottom bottom',
-  pin: '.hero-canvas',
-  pinSpacing: false,
 });
 
 const nav = $('#nav');

@@ -8,7 +8,7 @@ const p = await ctx.newPage();
 const errs = [];
 p.on('pageerror', (e) => errs.push(e.message));
 await p.goto('http://localhost:4173/', { waitUntil: 'networkidle' });
-await p.waitForTimeout(7000);
+await p.waitForTimeout(12000);
 await p.screenshot({ path: '/tmp/shots2/rm-hero.png' });
 
 // Every panel must render fully once opened, with nothing stranded at opacity 0.
