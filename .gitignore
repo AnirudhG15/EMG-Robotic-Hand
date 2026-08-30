@@ -90,5 +90,7 @@ Thumbs.db
 node_modules/
 web/node_modules/
 web/dist/
+# Single-file bundle from web/pack-artifact.mjs — a build output, and 3 MB of it.
+web/emg-hand-site.html
 *.log
 web/public/handpack.*
