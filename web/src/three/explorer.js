@@ -23,7 +23,7 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.92;
+  renderer.toneMappingExposure = 0.85;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -35,12 +35,59 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.45;
   pmrem.dispose();
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.22));
-  scene.add(new THREE.HemisphereLight(0xa9bde0, 0x1a1430, 0.42));
+  // Backdrop.
+  //
+  // This has to be geometry, not CSS. The canvas is created with alpha, but the
+  // effect composer writes an opaque alpha into the final buffer, so anything
+  // painted behind the canvas is invisible no matter what the stylesheet says.
+  // A back-faced sphere carrying the gradient gets rendered with the scene
+  // instead, which also means it sits behind the model correctly and turns with
+  // the orbit like a real cyclorama.
+  const backdrop = new THREE.Mesh(
+    new THREE.SphereGeometry(4200, 32, 24),
+    new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      depthTest: false,
+      uniforms: {
+        uTop:    { value: new THREE.Color(0x141234) },
+        uHorizon:{ value: new THREE.Color(0x272a58) },
+        uFloor:  { value: new THREE.Color(0x08071a) },
+        uPool:   { value: new THREE.Color(0x5d74b6) },
+      },
+      vertexShader: `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        varying vec3 vDir;
+        uniform vec3 uTop, uHorizon, uFloor, uPool;
+        void main() {
+          float h = vDir.y;
+          // Two-stop vertical ramp: a lit wall above the horizon falling to a
+          // dark floor below it, the way a seamless backdrop actually reads.
+          vec3 c = mix(uFloor, uHorizon, smoothstep(-0.55, 0.06, h));
+          c = mix(c, uTop, smoothstep(0.05, 0.72, h));
+          // Soft pool of light behind the subject, up and slightly camera-left.
+          float pool = pow(max(0.0, dot(vDir, normalize(vec3(-0.18, 0.30, 0.94)))), 5.0);
+          c += uPool * pool * 0.30;
+          gl_FragColor = vec4(c, 1.0);
+        }`,
+    }),
+  );
+  backdrop.renderOrder = -1;
+  backdrop.frustumCulled = false;
+  scene.add(backdrop);
 
-  const key = new THREE.DirectionalLight(0xfff0e2, 1.55);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.07));
+  scene.add(new THREE.HemisphereLight(0x9fc0ff, 0x191233, 0.18));
+
+  const key = new THREE.DirectionalLight(0xfbfdff, 1.45);
   key.position.set(260, 420, 340);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
@@ -52,11 +99,11 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   key.shadow.normalBias = 1.2;
   scene.add(key);
 
-  const fill = new THREE.DirectionalLight(0x8fa8ff, 0.6);
+  const fill = new THREE.DirectionalLight(0x6f8cff, 0.34);
   fill.position.set(-380, 90, 180);
   scene.add(fill);
 
-  const rim = new THREE.DirectionalLight(0xffa35c, 1.15);
+  const rim = new THREE.DirectionalLight(0x5aa0ff, 1.05);
   rim.position.set(-120, 200, -420);
   scene.add(rim);
 
@@ -88,7 +135,7 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   composer.addPass(gtao);
   // Threshold above 1.0 so only emissive highlights bloom; printed PLA lit by
   // the key light must not.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.55, 0.6, 1.15);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.32, 0.55, 1.45);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
@@ -97,9 +144,13 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   const state = {
     yaw: -0.9, targetYaw: -0.35,
     pitch: 0.12, targetPitch: 0.06,
-    dist: 1250, targetDist: 900,
-    lift: -70, targetLift: -70,
+    dist: 1220, targetDist: 680,
+    lift: -140, targetLift: 34,
     explode: 0, targetExplode: 0,
+    // Scroll-driven camera offset, layered on top of whatever the viewer has
+    // dragged to. Kept separate so a drag mid-teardown is not fought over.
+    poseYaw: 0, targetPoseYaw: 0,
+    posePitch: 0, targetPosePitch: 0,
     xray: 0, targetXray: 0,
     autoSpin: true,
   };
@@ -114,7 +165,10 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   let lastT = 0;
   let ready = false;
 
-  const BASE = { color: 0x9098ad, roughness: 0.62, metalness: 0.04 };
+  // Printed PLA as it photographs: bright, slightly warm white with a tight
+  // specular. Roughness low enough to catch the softbox, high enough that it
+  // still reads as plastic rather than ceramic.
+  const BASE = { color: 0xdde2ec, roughness: 0.38, metalness: 0.02 };
 
   loadHandPack(new THREE.MeshStandardMaterial(BASE)).then((parts) => {
     hand = buildHandAssembly(parts);
@@ -236,8 +290,8 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
     if (hovered) { hovered = null; if (onHover) onHover(null); }
 
     if (!selected) {
-      state.targetLift = -70;
-      state.targetDist = 900;
+      state.targetLift = 34;
+      state.targetDist = 680;
       state.targetXray = userXray ? 1 : 0;
       return;
     }
@@ -275,6 +329,7 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   }
 
   const target = new THREE.Vector3();
+  const _right = new THREE.Vector3();
 
   // Adaptive quality. GTAO and bloom are the two expensive passes; on a device
   // that cannot hold a smooth frame they are dropped in that order rather than
@@ -312,6 +367,8 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
     state.dist = ease(state.dist, state.targetDist, dt, k * 0.8);
     state.lift = ease(state.lift, state.targetLift, dt, k * 0.8);
     state.explode = ease(state.explode, state.targetExplode, dt, 0.0075);
+    state.poseYaw = ease(state.poseYaw, state.targetPoseYaw, dt, 0.0055);
+    state.posePitch = ease(state.posePitch, state.targetPosePitch, dt, 0.0055);
     state.xray = ease(state.xray, state.targetXray, dt, 0.009);
 
     if (hand) {
@@ -336,19 +393,35 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
     }
 
     // The camera pulls back as the model opens, or the spread parts leave frame.
-    const d = state.dist * (1 + state.explode * 0.62);
-    const cp = Math.cos(state.pitch);
+    const d = state.dist * (1 + state.explode * 0.95);
+    const yaw = state.yaw + state.poseYaw;
+    const pitch = Math.max(-0.5, Math.min(0.7, state.pitch + state.posePitch));
+    const cp = Math.cos(pitch);
     camera.position.set(
-      Math.sin(state.yaw) * d * cp,
-      state.lift + Math.sin(state.pitch) * d + 60,
-      Math.cos(state.yaw) * d * cp,
+      Math.sin(yaw) * d * cp,
+      state.lift + Math.sin(pitch) * d + 60,
+      Math.cos(yaw) * d * cp,
     );
 
     // On a portrait viewport the detail panel is a bottom sheet covering the
     // lower half, so aim lower to push the model into the visible top half.
     const portrait = canvas.clientHeight > canvas.clientWidth * 1.15;
     const visH = 2 * d * Math.tan((camera.fov * Math.PI / 180) / 2);
-    target.set(0, state.lift - (portrait ? visH * 0.16 : 0), 0);
+    // At rest the framing is on the hand and the forearm runs out of the bottom
+    // of the shot. Opened up, the forearm is the subject too, so the aim drops
+    // to the middle of the whole assembly rather than staying on the knuckles.
+    target.set(0, state.lift - state.explode * 82 - (portrait ? visH * 0.16 : 0), 0);
+
+    // On a wide viewport the headline owns the left third, so the model is
+    // pushed right of centre. Sliding the camera sideways rather than turning it
+    // keeps the model square to the lens -- swinging the aim would skew it.
+    if (!portrait) {
+      const visW = visH * (canvas.clientWidth / canvas.clientHeight);
+      _right.set(camera.matrixWorld.elements[0], 0, camera.matrixWorld.elements[2]).normalize();
+      _right.multiplyScalar(-visW * 0.12);
+      camera.position.add(_right);
+      target.add(_right);
+    }
     camera.lookAt(target);
 
     composer.render();
@@ -367,10 +440,19 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
       if (onHover) onHover(it ? it.userData : null);
     },
     setExplode: (v) => { state.targetExplode = v; },
+    // Camera choreography for the scroll teardown: a slow third of a turn and a
+    // gentle climb, eased by the same frame loop as everything else so it never
+    // steps with the scroll wheel.
+    setScrollPose: (p) => {
+      const k = p * p * (3 - 2 * p);
+      state.targetPoseYaw = k * 1.15;
+      state.targetPosePitch = k * 0.22;
+    },
     setXray: (v) => { userXray = v > 0.5; state.targetXray = v; },
     resetView: () => {
       select(null);
       state.targetYaw = -0.35; state.targetPitch = 0.06; state.autoSpin = true;
+      state.targetPoseYaw = 0; state.targetPosePitch = 0;
     },
     get items() { return items; },
   };

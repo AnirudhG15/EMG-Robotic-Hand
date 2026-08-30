@@ -31,11 +31,22 @@ function islandGeometry(buf, isl) {
     pos[o + 2] = mnz + (q[o + 2] + 32768) * DEQ * sz - cz;
   }
 
+  // Vertex centroid, relative to the bounding-box centre. A printed part with a
+  // fork at one end and a solid knuckle at the other carries most of its surface
+  // on the solid end, so this offset says which way round the piece goes —
+  // information the bounding box alone cannot give.
+  let vx = 0, vy = 0, vz = 0;
+  for (let i = 0; i < isl.nv; i++) {
+    const o = i * 3;
+    vx += pos[o]; vy += pos[o + 1]; vz += pos[o + 2];
+  }
+  vx /= isl.nv; vy /= isl.nv; vz /= isl.nv;
+
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   g.setIndex(new THREE.BufferAttribute(new Uint16Array(buf, isl.i, isl.nt * 3), 1));
   g.computeVertexNormals();
-  return { geometry: g, center: [cx, cy, cz], size: [sx, sy, sz] };
+  return { geometry: g, center: [cx, cy, cz], size: [sx, sy, sz], vc: [vx, vy, vz] };
 }
 
 async function fetchPack() {
@@ -66,12 +77,12 @@ export async function loadHandPack(material) {
     const mx = [-Infinity, -Infinity, -Infinity];
 
     for (const isl of part.islands) {
-      const { geometry, center, size } = islandGeometry(buf, isl);
+      const { geometry, center, size, vc } = islandGeometry(buf, isl);
       const mesh = new THREE.Mesh(geometry, material);
       mesh.position.set(center[0], center[1], center[2]);
       mesh.castShadow = true;
       mesh.receiveShadow = false;
-      islands.push({ mesh, size, center, verts: isl.nv, tris: isl.nt });
+      islands.push({ mesh, size, center, vc, verts: isl.nv, tris: isl.nt });
       for (let i = 0; i < 3; i++) {
         if (isl.min[i] < mn[i]) mn[i] = isl.min[i];
         if (isl.max[i] > mx[i]) mx[i] = isl.max[i];

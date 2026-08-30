@@ -1,0 +1,52 @@
+<!doctype html><meta charset=utf-8><title>islands</title>
+<style>html,body{margin:0;background:#101216;overflow:hidden}canvas{display:block}</style>
+<canvas id=c></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { loadHandPack } from '/src/three/handpack.js';
+const q = new URLSearchParams(location.search);
+const want = q.get('part') || 'Index3';
+const parts = await loadHandPack();
+const p = parts.get(want);
+const r = new THREE.WebGLRenderer({canvas:c,antialias:true});
+r.setSize(innerWidth, innerHeight);
+r.setPixelRatio(2);
+const sc = new THREE.Scene();
+sc.background = new THREE.Color(0x101216);
+sc.add(new THREE.AmbientLight(0xffffff,0.55));
+const d1=new THREE.DirectionalLight(0xffffff,2.0); d1.position.set(3,5,6); sc.add(d1);
+const d2=new THREE.DirectionalLight(0x88aaff,1.0); d2.position.set(-4,2,-5); sc.add(d2);
+const d3=new THREE.DirectionalLight(0xffffff,0.9); d3.position.set(0,-4,3); sc.add(d3);
+const isl = [...p.islands].sort((a,b)=>Math.max(...b.size)-Math.max(...a.size));
+const mat = new THREE.MeshStandardMaterial({color:0xdfe4ee,roughness:0.42,metalness:0.05});
+// grid: columns = islands, rows = 3 view angles (front, side, top)
+const ANG = [[0,0,0],[0,Math.PI/2,0],[-Math.PI/2,0,0]];
+const CELL = 100;
+const nC = isl.length, nR = ANG.length;
+isl.forEach((s,i)=>{
+  ANG.forEach((a,j)=>{
+    const m = s.mesh.clone();
+    m.material = mat;
+    m.position.set(0,0,0); m.quaternion.identity();
+    const g = new THREE.Group(); g.add(m);
+    g.rotation.set(a[0],a[1],a[2]);
+    const outer = new THREE.Group(); outer.add(g);
+    const k = (CELL*0.72)/Math.max(...s.size);
+    outer.scale.setScalar(k);
+    outer.position.set((i-(nC-1)/2)*CELL, ((nR-1)/2-j)*CELL, 0);
+    sc.add(outer);
+  });
+});
+const camW = nC*CELL, camH = nR*CELL;
+const cam = new THREE.OrthographicCamera(-camW/2, camW/2, camH/2, -camH/2, -2000, 2000);
+cam.position.set(0,0,600); cam.lookAt(0,0,0);
+function fit(){
+  const asp = innerWidth/innerHeight, want = camW/camH;
+  let w=camW,h=camH;
+  if (asp>want) w = camH*asp; else h = camW/asp;
+  cam.left=-w/2;cam.right=w/2;cam.top=h/2;cam.bottom=-h/2;cam.updateProjectionMatrix();
+}
+fit();
+r.render(sc,cam);
+window.__ready = true;
+</script>

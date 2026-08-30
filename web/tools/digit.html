@@ -1,0 +1,39 @@
+<!doctype html><meta charset=utf-8><title>digit</title>
+<style>html,body{margin:0;background:#101216;overflow:hidden}canvas{display:block}</style>
+<canvas id=c></canvas>
+<script type="module">
+import * as THREE from 'three';
+import { loadHandPack } from '/src/three/handpack.js';
+import { __debugFinger } from '/src/three/assembly.js';
+const q=new URLSearchParams(location.search);
+const parts = await loadHandPack();
+const r=new THREE.WebGLRenderer({canvas:c,antialias:true}); r.setSize(innerWidth,innerHeight); r.setPixelRatio(2); r.toneMapping=THREE.ACESFilmicToneMapping; r.outputColorSpace=THREE.SRGBColorSpace;
+const sc=new THREE.Scene(); sc.background=new THREE.Color(0x101216);
+sc.add(new THREE.AmbientLight(0xffffff,0.25));
+const a=new THREE.DirectionalLight(0xffffff,1.1);a.position.set(3,5,6);sc.add(a);
+const b2=new THREE.DirectionalLight(0x88aaff,0.5);b2.position.set(-5,2,-5);sc.add(b2);
+const b3=new THREE.DirectionalLight(0xffffff,0.35);b3.position.set(0,-3,4);sc.add(b3);
+const mat=new THREE.MeshStandardMaterial({color:0xdfe4ee,roughness:0.42,metalness:0.05});
+const specs=[['Index3','index','long'],['thumb5','thumb','thumb']];
+const ANG=[0, Math.PI/2, Math.PI];
+specs.forEach(([pid,id,kind],si)=>{
+  // Build once -- the pack hands out one mesh per island, so building the same
+  // part twice would steal the meshes from the first copy. Clone for the extra
+  // viewing angles instead.
+  const base=__debugFinger(parts.get(pid), id, kind);
+  base.traverse(o=>{ if(o.isMesh && o.material.metalness < 0.5) o.material=mat; });
+  ANG.forEach((ang,j)=>{
+    const g = j===0 ? base : base.clone(true);
+    const w=new THREE.Group(); w.add(g); w.rotation.y=ang;
+    const o=new THREE.Group(); o.add(w);
+    o.position.x = (si*3+j)*80 - 200;
+    sc.add(o);
+  });
+});
+const cam=new THREE.OrthographicCamera(-260,260,0,0,-2000,2000);
+const H=520*innerHeight/innerWidth;
+cam.top=H*0.5+40; cam.bottom=-H*0.5+40; cam.updateProjectionMatrix();
+cam.position.set(0,0,600); cam.lookAt(0,0,0);
+r.render(sc,cam);
+window.__ready=true;
+</script>

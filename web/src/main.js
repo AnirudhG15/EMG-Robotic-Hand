@@ -154,6 +154,7 @@ const explorer = createExplorer(stageCanvas, {
   },
 });
 scenes.push({ canvas: stageCanvas, frame: explorer.frame });
+if (import.meta.env.DEV) window.__explorer = explorer; // dev-only camera probe
 
 $('#inspect-close').addEventListener('click', () => explorer.select(null));
 document.addEventListener('keydown', (e) => {
@@ -186,6 +187,18 @@ if (!REDUCED) {
 
 /* -------------------------------------------------- scroll drives explode */
 
+const stageEl = $('.stage');
+const chapters = $('#chapters');
+const stageHead = $('.stage-head');
+
+// Four chapters across the track, with a lead-in before the first so the hero
+// is not interrupted the instant the page moves.
+const CHAP_START = 0.14;
+const chapterAt = (p) => (p < CHAP_START ? -1
+  : Math.min(3, Math.floor(((p - CHAP_START) / (1 - CHAP_START)) * 4)));
+
+let lastChapter = -2;
+
 ScrollTrigger.create({
   trigger: '#build',
   start: 'top top',
@@ -194,11 +207,29 @@ ScrollTrigger.create({
   onUpdate: (self) => {
     const p = self.progress;
     explorer.setExplode(p);
+    // The teardown is also a camera move: the model turns about a third of a
+    // turn and settles a little lower as it opens, so the parts that separate
+    // last are not hidden behind the ones that went first.
+    explorer.setScrollPose(p);
     cue.setAttribute('data-hidden', String(p > 0.02));
-    // The copy steps aside once parts start moving through where it sits.
-    const head = $('.stage-head');
-    head.style.opacity = String(Math.max(0, 1 - p * 3.4));
-    head.style.transform = `translateY(${-p * 26}px)`;
+
+    // The headline steps aside once parts start moving through where it sits,
+    // and the chapter narration takes over that space.
+    // The headline has to be fully gone before the first chapter arrives, not
+    // merely faint: two overlapping paragraphs at low opacity read as a bug.
+    const headOut = Math.max(0, 1 - p * 9);
+    stageHead.style.opacity = String(headOut);
+    stageHead.style.visibility = headOut < 0.01 ? 'hidden' : 'visible';
+    stageHead.style.transform = `translateY(${-p * 46}px)`;
+    // The bottom haze lifts as the model opens — half the parts travel down
+    // into it, and hiding them there would defeat the whole scroll.
+    stageEl.style.setProperty('--stage-fade', (1 - p * 0.88).toFixed(3));
+
+    const c = chapterAt(p);
+    if (c !== lastChapter) {
+      lastChapter = c;
+      chapters.setAttribute('data-active', String(c));
+    }
   },
 });
 
