@@ -176,13 +176,25 @@ $('#ctl-reset').addEventListener('click', () => {
   explorer.setXray(0);
 });
 
+// GSAP freezes its own timeline when a frame takes longer than 500 ms, on the
+// assumption that the tab was backgrounded and the elapsed time is bogus. This
+// page can genuinely blow past that on its first frames -- decoding a two-megabyte
+// mesh pack, compiling the post-processing shaders -- and when it does, an intro
+// tween never advances. That left the stage controls stuck at the opacity they
+// started at, which is zero: on a slow machine the buttons simply never appeared.
+gsap.ticker.lagSmoothing(1400, 22);
+
 if (!REDUCED) {
-  gsap.from('.stage-head > *', {
-    y: 26, opacity: 0, duration: 0.9, stagger: 0.09, ease: 'power3.out', delay: 0.2,
-  });
-  gsap.from('.stage-controls', {
-    opacity: 0, duration: 0.8, delay: 0.9, ease: 'power2.out', clearProps: 'opacity',
-  });
+  // fromTo, not from. A `from` tween that never runs leaves the element at its
+  // start value, so any hiccup hides the controls permanently; naming the end
+  // state means the worst case is that they appear without animating.
+  gsap.fromTo('.stage-head > *',
+    { y: 26, opacity: 0 },
+    { y: 0, opacity: 1, duration: 0.9, stagger: 0.09, ease: 'power3.out', delay: 0.2,
+      clearProps: 'transform,opacity' });
+  gsap.fromTo('.stage-controls',
+    { opacity: 0 },
+    { opacity: 1, duration: 0.8, delay: 0.9, ease: 'power2.out', clearProps: 'opacity' });
 }
 
 /* -------------------------------------------------- scroll drives explode */
@@ -349,7 +361,10 @@ function sample(x, st, t) {
 
 // Trace colour walks the accent spectrum as the signal is conditioned: amber
 // while it is raw analog, cyan by the time it is ready for the ADC.
-const TRACE = ['#FF9A4D', '#FFB35C', '#FFC768', '#A8E64A', '#5FDCC0', '#35CFE8'];
+// The scope face stays dark — an instrument reads that way and a trace needs a
+// dark ground — so the trace runs bright, cooling stage by stage as the signal
+// is cleaned up.
+const TRACE = ['#FF9A4D', '#FFC65C', '#D6E64A', '#7FE07A', '#4FD6C8', '#5AA8FF'];
 
 function drawScope(t) {
   const W = scope.width, H = scope.height;
@@ -360,7 +375,7 @@ function drawScope(t) {
   const scale = rectified ? H - 52 : H / 2 - 22;
   const col = TRACE[stage];
 
-  sctx.strokeStyle = '#736DA0';
+  sctx.strokeStyle = '#5C6B8A';
   sctx.globalAlpha = 0.35;
   sctx.lineWidth = 1;
   sctx.beginPath();
@@ -430,7 +445,7 @@ const partsLayout = $('.parts-layout');
 let filter = 'all';
 let selected = PARTS[0].id;
 
-filterEl.innerHTML = [{ id: 'all', label: 'All', hex: '#F4F3FF' }, ...GROUPS]
+filterEl.innerHTML = [{ id: 'all', label: 'All', hex: '#0E1420' }, ...GROUPS]
   .map((g) => `<button type="button" data-group="${g.id}" style="--g-hue: ${g.hex}"
         aria-selected="${g.id === 'all'}">${g.label}</button>`)
   .join('');

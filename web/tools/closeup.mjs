@@ -8,7 +8,8 @@ const shots = [
 for (const [name, st] of shots) {
   const p=await b.newPage({viewport:{width:1200,height:900}});
   p.on('pageerror',e=>console.log('ERR',e.message));
-  await p.goto('http://localhost:5199/',{waitUntil:'load'});
+  await p.addInitScript(() => { window.__forceQuality = true; });
+await p.goto('http://localhost:5199/',{waitUntil:'load'});
   await p.waitForTimeout(11000);
   await p.evaluate((st)=>{
     const e=window.__explorer; if(!e) return;

@@ -296,25 +296,40 @@ function buildElectronics() {
 
 // sub drives colour coding, cascade order and the explode direction.
 const SUBS = {
-  shell: { hue: 0xB49AFF, slot: 0.00 },
-  wrist: { hue: 0xB49AFF, slot: 0.14 },
-  palm: { hue: 0xB49AFF, slot: 0.22 },
-  finger: { hue: 0xFF8ABB, slot: 0.30 },
-  cover: { hue: 0xFF8ABB, slot: 0.38 },
-  electronics: { hue: 0x45D9F0, slot: 0.44 },
-  hardware: { hue: 0xB7F056, slot: 0.52 },
+  shell: { hue: 0x6D3BE0, slot: 0.00 },
+  wrist: { hue: 0x6D3BE0, slot: 0.14 },
+  palm: { hue: 0x6D3BE0, slot: 0.22 },
+  finger: { hue: 0x2340D6, slot: 0.30 },
+  cover: { hue: 0x2340D6, slot: 0.38 },
+  electronics: { hue: 0x0E7490, slot: 0.44 },
+  hardware: { hue: 0xB4470E, slot: 0.52 },
 };
 
 // Fan of the four long digits across the knuckle line.
-// Knuckle line. A relaxed open hand splays only a few degrees — the wide fan
-// this started with read as a cartoon. The knuckles also arc backward slightly
-// (index and pinky sit lower than the middle), which is what makes the row of
-// fingertips curve instead of running flat.
+// The knuckle line, set from human hand anthropometry rather than by eye.
+//
+// A hand is not four fingers on a flat edge. Standard adult measurements, with
+// hand breadth 87 mm and hand length 189 mm, put the metacarpal heads on a clear
+// arc -- the index knuckle sits about 5 mm below the middle, the ring 4 mm, and
+// the little finger a full 15 mm -- and give each digit a different length:
+// index 74 mm from knuckle to tip, middle 82, ring 78, little 62. Getting the
+// arc and those four lengths right is most of what makes a hand read as a hand.
+//
+// Everything below is those figures scaled by 0.976, the ratio of this palm's
+// 84.9 mm width to the 87 mm the measurements assume, and expressed in the
+// model's own frame (palm centre near x = -2).
+//
+// The palm has to match: 107 mm from the knuckle line to the wrist crease
+// against 82 mm of middle finger. The printed palm plate is 108 mm tall, so the
+// knuckle line sits 8 mm inside its top edge and the proportion comes out right.
+const MCP_Y = 52;                 // middle-finger knuckle height
+const FINGER_MM = { index: 72, middle: 80, ring: 76, pinky: 60.5 };
+
 const DIGITS = [
-  { id: 'index',  part: 'Index3',       x: -26, y: 50, z: 1,  tilt: -4, yaw: -4, scale: 0.94 },
-  { id: 'middle', part: 'Majeure3',     x: -2,  y: 54, z: 0,  tilt: 0,  yaw: 0,  scale: 0.94 },
-  { id: 'ring',   part: 'ringfinger3',  x: 21,  y: 51, z: -1, tilt: 4,  yaw: 3,  scale: 0.92 },
-  { id: 'pinky',  part: 'Auriculaire3', x: 42,  y: 43, z: -3, tilt: 9,  yaw: 7,  scale: 0.85 },
+  { id: 'index',  part: 'Index3',       x: -23.5, y: MCP_Y - 5,  z: 1,  tilt: -4, yaw: -3 },
+  { id: 'middle', part: 'Majeure3',     x: -2,    y: MCP_Y,      z: 0,  tilt: 0,  yaw: 0 },
+  { id: 'ring',   part: 'ringfinger3',  x: 17.5,  y: MCP_Y - 4,  z: -1, tilt: 5,  yaw: 3 },
+  { id: 'pinky',  part: 'Auriculaire3', x: 36,    y: MCP_Y - 15, z: -3, tilt: 11, yaw: 7 },
 ];
 
 export function buildHandAssembly(parts) {
@@ -419,7 +434,9 @@ export function buildHandAssembly(parts) {
     holder.add(f);
     setEuler(holder, [0, d.yaw, d.tilt]);
     holder.position.set(d.x, d.y, d.z);
-    holder.scale.setScalar(d.scale);
+    // Scaled to its anthropometric length rather than to a number picked by eye,
+    // so the four fingertips land on the arc a real hand makes.
+    holder.scale.setScalar(FINGER_MM[d.id] / f.userData.length);
     add(holder, {
       sub: 'finger', id: d.part,
       label: `${d.id[0].toUpperCase()}${d.id.slice(1)} finger`,

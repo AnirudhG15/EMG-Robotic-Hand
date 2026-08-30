@@ -17,16 +17,17 @@ function studioEnv(renderer) {
   return envCache;
 }
 
-// Studio lighting: a warm key from the front-right, a cool fill from the left,
-// and a hard amber rim behind. The rim is what separates the part from a dark
-// ground without needing a background plate.
-function lightRig(scene, { warm = 0xffb27a, cool = 0x6f9ad6, rim = 0xff7a2f } = {}) {
-  scene.add(new THREE.AmbientLight(0xffffff, 0.34));
+// Studio lighting for a bright ground. The rim used to be the whole trick --
+// a hard amber edge was the only thing separating a part from black. On paper
+// the opposite is true: the key and a real cast shadow do the separating, and
+// the rim is a coloured accent that ties the part to its subsystem.
+function lightRig(scene, { warm = 0xfff4e6, cool = 0xbfd4f2, rim = 0x2340d6 } = {}) {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.22));
 
-  const hemi = new THREE.HemisphereLight(0x9fb6d6, 0x1a1410, 0.5);
+  const hemi = new THREE.HemisphereLight(0xe8f0ff, 0xb6bfcd, 0.42);
   scene.add(hemi);
 
-  const key = new THREE.DirectionalLight(warm, 2.5);
+  const key = new THREE.DirectionalLight(warm, 2.1);
   key.position.set(4, 6, 5);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
@@ -39,11 +40,11 @@ function lightRig(scene, { warm = 0xffb27a, cool = 0x6f9ad6, rim = 0xff7a2f } = 
   key.shadow.bias = -0.0012;
   scene.add(key);
 
-  const fill = new THREE.DirectionalLight(cool, 0.85);
+  const fill = new THREE.DirectionalLight(cool, 0.7);
   fill.position.set(-6, 2, 3);
   scene.add(fill);
 
-  const back = new THREE.DirectionalLight(rim, 1.9);
+  const back = new THREE.DirectionalLight(rim, 1.5);
   back.position.set(-2, 3, -7);
   scene.add(back);
 
@@ -57,7 +58,7 @@ function makeRenderer(canvas) {
   r.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   r.outputColorSpace = THREE.SRGBColorSpace;
   r.toneMapping = THREE.ACESFilmicToneMapping;
-  r.toneMappingExposure = 1.05;
+  r.toneMappingExposure = 0.92;
   r.shadowMap.enabled = true;
   r.shadowMap.type = THREE.PCFSoftShadowMap;
   return r;
@@ -69,16 +70,16 @@ export function createPartScene(canvas) {
   const renderer = makeRenderer(canvas);
   const scene = new THREE.Scene();
   scene.environment = studioEnv(renderer);
-  scene.environmentIntensity = 1.15;
+  scene.environmentIntensity = 0.9;
   const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
   camera.position.set(0, 1.15, 5.0);
   camera.lookAt(0, 0, 0);
 
-  const rig = lightRig(scene, { warm: 0xffd0a8, rim: 0xff9a4d });
+  const rig = lightRig(scene, { warm: 0xfff2e2, rim: 0x2340d6 });
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(30, 30),
-    new THREE.ShadowMaterial({ opacity: 0.3 }),
+    new THREE.ShadowMaterial({ opacity: 0.22, color: 0x1d2942 }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -1.9;
@@ -100,7 +101,9 @@ export function createPartScene(canvas) {
     current = cache.get(model);
     holder.add(current);
     state.entering = 1;
-    if (hex) rig.back.color.set(hex);
+    // The subsystem hues are chosen for text contrast on white, so they are too
+    // dark to work as light. Lifted toward their own bright end for the rim.
+    if (hex) rig.back.color.set(hex).offsetHSL(0, 0.05, 0.28);
   }
 
   function resize() {

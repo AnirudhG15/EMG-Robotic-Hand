@@ -23,7 +23,7 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.85;
+  renderer.toneMappingExposure = 0.80;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -35,7 +35,7 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   const pmrem = new THREE.PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.45;
+  scene.environmentIntensity = 0.42;
   pmrem.dispose();
 
   // Backdrop.
@@ -53,10 +53,12 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
       depthWrite: false,
       depthTest: false,
       uniforms: {
-        uTop:    { value: new THREE.Color(0x141234) },
-        uHorizon:{ value: new THREE.Color(0x272a58) },
-        uFloor:  { value: new THREE.Color(0x08071a) },
-        uPool:   { value: new THREE.Color(0x5d74b6) },
+        // A photographer's sweep: bright behind and above the subject, cooling
+        // and darkening toward the floor so a white model still has an edge.
+        uTop:    { value: new THREE.Color(0xc9d6ec) },
+        uHorizon:{ value: new THREE.Color(0xe6ecf8) },
+        uFloor:  { value: new THREE.Color(0x8b9cba) },
+        uPool:   { value: new THREE.Color(0xffffff) },
       },
       vertexShader: `
         varying vec3 vDir;
@@ -71,11 +73,11 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
           float h = vDir.y;
           // Two-stop vertical ramp: a lit wall above the horizon falling to a
           // dark floor below it, the way a seamless backdrop actually reads.
-          vec3 c = mix(uFloor, uHorizon, smoothstep(-0.55, 0.06, h));
+          vec3 c = mix(uFloor, uHorizon, smoothstep(-0.40, 0.10, h));
           c = mix(c, uTop, smoothstep(0.05, 0.72, h));
           // Soft pool of light behind the subject, up and slightly camera-left.
           float pool = pow(max(0.0, dot(vDir, normalize(vec3(-0.18, 0.30, 0.94)))), 5.0);
-          c += uPool * pool * 0.30;
+          c += uPool * pool * 0.16;
           gl_FragColor = vec4(c, 1.0);
         }`,
     }),
@@ -84,10 +86,10 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   backdrop.frustumCulled = false;
   scene.add(backdrop);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.07));
-  scene.add(new THREE.HemisphereLight(0x9fc0ff, 0x191233, 0.18));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.05));
+  scene.add(new THREE.HemisphereLight(0xdce8ff, 0x8c98b0, 0.16));
 
-  const key = new THREE.DirectionalLight(0xfbfdff, 1.45);
+  const key = new THREE.DirectionalLight(0xfffdf8, 1.55);
   key.position.set(260, 420, 340);
   key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
@@ -99,17 +101,19 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   key.shadow.normalBias = 1.2;
   scene.add(key);
 
-  const fill = new THREE.DirectionalLight(0x6f8cff, 0.34);
+  const fill = new THREE.DirectionalLight(0x9fb6e8, 0.30);
   fill.position.set(-380, 90, 180);
   scene.add(fill);
 
-  const rim = new THREE.DirectionalLight(0x5aa0ff, 1.05);
+  // On a bright ground a white model loses its edge, so the rim is the light
+  // doing the most work here -- it is what draws the silhouette.
+  const rim = new THREE.DirectionalLight(0x2f5cd8, 1.15);
   rim.position.set(-120, 200, -420);
   scene.add(rim);
 
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(3000, 3000),
-    new THREE.ShadowMaterial({ opacity: 0.42 }),
+    new THREE.ShadowMaterial({ opacity: 0.30, color: 0x1d2942 }),
   );
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -330;
@@ -127,7 +131,7 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   // so it is set in millimetres like everything else.
   const gtao = new GTAOPass(scene, camera, 1, 1);
   gtao.output = GTAOPass.OUTPUT.Default;
-  gtao.blendIntensity = 0.85;
+  gtao.blendIntensity = 1.25;
   gtao.updateGtaoMaterial({
     radius: 14, distanceExponent: 1.4, thickness: 12,
     scale: 1.05, samples: 16, screenSpaceRadius: false,
@@ -135,7 +139,9 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   composer.addPass(gtao);
   // Threshold above 1.0 so only emissive highlights bloom; printed PLA lit by
   // the key light must not.
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.32, 0.55, 1.45);
+  // Bloom is a dark-scene device: on a bright ground it only washes the
+  // highlights out. Kept at a trace so selection glow still reads.
+  const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.14, 0.5, 1.6);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
 
@@ -168,7 +174,15 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   // Printed PLA as it photographs: bright, slightly warm white with a tight
   // specular. Roughness low enough to catch the softbox, high enough that it
   // still reads as plastic rather than ceramic.
-  const BASE = { color: 0xdde2ec, roughness: 0.38, metalness: 0.02 };
+  // Printed PLA on a bright ground.
+  //
+  // White filament was the obvious choice against a dark page and is the wrong
+  // one here: a white model on a white sweep has no silhouette, and no amount of
+  // ambient occlusion recovers it. The model is silver-grey PLA now -- a real
+  // filament, and the value every product photographer reaches for when the
+  // background is paper. Its lit faces still come up near-white, so it reads as
+  // a bright object; its shaded faces have somewhere to go.
+  const BASE = { color: 0xb9c3d4, roughness: 0.47, metalness: 0.03 };
 
   loadHandPack(new THREE.MeshStandardMaterial(BASE)).then((parts) => {
     hand = buildHandAssembly(parts);
@@ -330,6 +344,7 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
 
   const target = new THREE.Vector3();
   const _right = new THREE.Vector3();
+  const _tint = new THREE.Color();
 
   // Adaptive quality. GTAO and bloom are the two expensive passes; on a device
   // that cannot hold a smooth frame they are dropped in that order rather than
@@ -339,6 +354,11 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
   let slowFrames = 0;
   let tier = 2;
   function checkQuality(dt) {
+    // Headless capture runs on software WebGL at a couple of frames a second,
+    // so the adaptive tier drops instantly and every screenshot comes back with
+    // no ambient occlusion -- which is most of what gives the printed parts
+    // their form. This lets the capture scripts hold full quality.
+    if (typeof window !== 'undefined' && window.__forceQuality) return;
     if (tier === 0) return;
     qualityFrames++;
     if (qualityFrames < 40) return;      // warm-up
@@ -382,13 +402,30 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
         if (!m) continue;
         const isShell = it.userData.sub === 'shell';
         const dim = selected && selected !== it ? 0.5 : 1;
-        const targetOp = isShell ? (1 - open * 0.82) * dim : dim;
+        // A shell fading to 0.18 disappeared entirely against a bright ground —
+        // on a dark page that residue still read as a ghost. It stops at 0.34
+        // here, which is enough to keep the enclosure's outline while the parts
+        // inside it stay the subject.
+        const targetOp = isShell ? (1 - open * 0.66) * dim : dim;
         m.opacity = targetOp;
         m.depthWrite = targetOp > 0.9;
 
-        const glow = it === hovered ? 0.16 : it === selected ? 0.34 : 0;
-        m.emissive.setHex(it.userData.hue);
-        m.emissiveIntensity = glow;
+        // Hover and selection read as a TINT here, not a glow. On a dark page an
+        // emissive lift was the obvious signal; against a bright ground it barely
+        // registers, and what does register is the part changing colour. So the
+        // albedo is blended toward the subsystem hue and the emissive is left as
+        // a trace to keep a selected part from going flat in shadow.
+        const k = it === hovered ? 0.30 : it === selected ? 0.62 : 0;
+        if (k === 0) {
+          if (m.userData.tinted) { m.color.setHex(BASE.color); m.userData.tinted = false; }
+          m.emissiveIntensity = 0;
+        } else {
+          _tint.setHex(it.userData.hue);
+          m.color.setHex(BASE.color).lerp(_tint, k * 0.55);
+          m.emissive.copy(_tint);
+          m.emissiveIntensity = k * 0.12;
+          m.userData.tinted = true;
+        }
       }
     }
 
@@ -434,6 +471,8 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
 
   return {
     state, frame, resize, select,
+    // Dev probe: which passes actually survived the adaptive quality check.
+    get quality() { return { tier, gtao: gtao.enabled, bloom: bloom.enabled }; },
     get ready() { return ready; },
     selectById: (id) => select(byId(id)),
     hoverById: (id) => {

@@ -29,7 +29,7 @@ export const HAND_INFO = {
   digit: {
     kind: 'Printed · PLA',
     title: 'Finger',
-    body: 'Three phalanges and their joint pieces, printed flat as a plate of loose parts and assembled with bolts. Braided line runs up the palmar side; elastic cord returns the finger when the line goes slack.',
+    body: 'Three phalanges, two link pieces and a domed tip, printed as a plate of loose parts and pinned together through moulded bores. Braided line runs up the palmar side; elastic cord returns the finger when the line goes slack.',
     why: 'Tendon drive means one servo per finger and no motor in the digit itself. The finger stays slim and light, and a jam bends the line rather than stripping a gearbox.',
     facts: [['Phalanges', '3'], ['Actuation', 'Braided line'], ['Return', 'Elastic cord']],
   },
