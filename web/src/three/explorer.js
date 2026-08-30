@@ -359,7 +359,7 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
     lastT = t;
     if (ready) checkQuality(dt);
 
-    if (state.autoSpin && !REDUCED && !selected) state.targetYaw += dt * 0.00009;
+    if (state.autoSpin && !REDUCED && !selected) state.targetYaw += dt * 0.00022;
 
     const k = REDUCED ? 60 : 0.0062;
     state.yaw = ease(state.yaw, state.targetYaw, dt, k);
@@ -393,7 +393,11 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
     }
 
     // The camera pulls back as the model opens, or the spread parts leave frame.
-    const d = state.dist * (1 + state.explode * 0.95);
+    // A portrait viewport is much narrower than the model is tall, so it needs
+    // considerably more distance or the hand fills the screen and lands on the
+    // headline.
+    const portrait = canvas.clientHeight > canvas.clientWidth * 1.15;
+    const d = state.dist * (1 + state.explode * 0.95) * (portrait ? 1.5 : 1);
     const yaw = state.yaw + state.poseYaw;
     const pitch = Math.max(-0.5, Math.min(0.7, state.pitch + state.posePitch));
     const cp = Math.cos(pitch);
@@ -403,14 +407,13 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
       Math.cos(yaw) * d * cp,
     );
 
-    // On a portrait viewport the detail panel is a bottom sheet covering the
-    // lower half, so aim lower to push the model into the visible top half.
-    const portrait = canvas.clientHeight > canvas.clientWidth * 1.15;
+    // On a portrait viewport the copy owns the top of the screen and the detail
+    // panel is a bottom sheet, so the model is aimed low to sit between them.
     const visH = 2 * d * Math.tan((camera.fov * Math.PI / 180) / 2);
     // At rest the framing is on the hand and the forearm runs out of the bottom
     // of the shot. Opened up, the forearm is the subject too, so the aim drops
     // to the middle of the whole assembly rather than staying on the knuckles.
-    target.set(0, state.lift - state.explode * 82 - (portrait ? visH * 0.16 : 0), 0);
+    target.set(0, state.lift - state.explode * 82 + (portrait ? visH * 0.20 : 0), 0);
 
     // On a wide viewport the headline owns the left third, so the model is
     // pushed right of centre. Sliding the camera sideways rather than turning it

@@ -59,8 +59,10 @@ async function fetchPack() {
     return [window.__HANDPACK.manifest, bytes.buffer];
   }
   return Promise.all([
-    fetch('handpack.json').then((r) => r.json()),
-    fetch('handpack.bin').then((r) => r.arrayBuffer()),
+    // Root-absolute: the pack lives in public/ and is served from the site root,
+    // and the dev tool pages under /tools/ have to reach it too.
+    fetch('/handpack.json').then((r) => r.json()),
+    fetch('/handpack.bin').then((r) => r.arrayBuffer()),
   ]);
 }
 
@@ -82,7 +84,14 @@ export async function loadHandPack(material) {
       mesh.position.set(center[0], center[1], center[2]);
       mesh.castShadow = true;
       mesh.receiveShadow = false;
-      islands.push({ mesh, size, center, vc, verts: isl.nv, tris: isl.nt });
+      // bore: the hinge pin hole found at pack time (tools/find-pivots.py),
+      // in the same bounding-box-centred frame as the mesh. Its span says
+      // whether the piece is a clevis (bore crosses the full width, through two
+      // prongs) or a tongue (bore through a narrow tab that drops into one).
+      islands.push({
+        mesh, size, center, vc, bore: isl.bore || null,
+        verts: isl.nv, tris: isl.nt,
+      });
       for (let i = 0; i < 3; i++) {
         if (isl.min[i] < mn[i]) mn[i] = isl.min[i];
         if (isl.max[i] > mx[i]) mx[i] = isl.max[i];

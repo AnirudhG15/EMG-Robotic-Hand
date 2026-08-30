@@ -94,3 +94,4 @@ web/dist/
 web/emg-hand-site.html
 *.log
 web/public/handpack.*
+web/tools/__pycache__/

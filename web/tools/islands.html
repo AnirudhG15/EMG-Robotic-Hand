@@ -18,23 +18,26 @@ const d1=new THREE.DirectionalLight(0xffffff,2.0); d1.position.set(3,5,6); sc.ad
 const d2=new THREE.DirectionalLight(0x88aaff,1.0); d2.position.set(-4,2,-5); sc.add(d2);
 const d3=new THREE.DirectionalLight(0xffffff,0.9); d3.position.set(0,-4,3); sc.add(d3);
 const isl = [...p.islands].sort((a,b)=>Math.max(...b.size)-Math.max(...a.size));
+const only = q.get('i');
+const show = only === null ? isl : [isl[+only]];
 const mat = new THREE.MeshStandardMaterial({color:0xdfe4ee,roughness:0.42,metalness:0.05});
-// grid: columns = islands, rows = 3 view angles (front, side, top)
-const ANG = [[0,0,0],[0,Math.PI/2,0],[-Math.PI/2,0,0]];
+// six axis views: +X -X +Y -Y +Z -Z  (camera looks down each axis at the piece)
+const ANG = [[0,-Math.PI/2,0],[0,Math.PI/2,0],[Math.PI/2,0,0],[-Math.PI/2,0,0],[0,0,0],[0,Math.PI,0]];
 const CELL = 100;
-const nC = isl.length, nR = ANG.length;
-isl.forEach((s,i)=>{
-  ANG.forEach((a,j)=>{
+const nC = show.length * ANG.length, nR = 1;
+let col = 0;
+show.forEach((s)=>{
+  ANG.forEach((a)=>{
     const m = s.mesh.clone();
     m.material = mat;
     m.position.set(0,0,0); m.quaternion.identity();
     const g = new THREE.Group(); g.add(m);
     g.rotation.set(a[0],a[1],a[2]);
     const outer = new THREE.Group(); outer.add(g);
-    const k = (CELL*0.72)/Math.max(...s.size);
-    outer.scale.setScalar(k);
-    outer.position.set((i-(nC-1)/2)*CELL, ((nR-1)/2-j)*CELL, 0);
+    outer.scale.setScalar((CELL*0.74)/Math.max(...s.size));
+    outer.position.set((col-(nC-1)/2)*CELL, 0, 0);
     sc.add(outer);
+    col++;
   });
 });
 const camW = nC*CELL, camH = nR*CELL;

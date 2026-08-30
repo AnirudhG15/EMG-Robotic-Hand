@@ -90,112 +90,157 @@ const tendonMat = new THREE.MeshStandardMaterial({
   color: 0xf2f4f8, roughness: 0.35, metalness: 0.0,
 });
 
-// What is actually on a finger plate.
+// What is actually on a finger plate, and how it goes together.
 //
-// Rendering each island on its own (tools/islands.html) shows six distinct
-// pieces, not six phalanges: three tapering tube segments with a clevis at one
-// end and a knuckle at the other, one smooth domed tip, and two short hinge
-// blocks that sit inside the clevis at each joint. All four long-finger files
-// share the same profile -- their islands come out of the pack in the same
-// order with matching triangle counts (1140/1090/782/776/690/634) -- so one
-// recipe covers them. The thumb is a different plate: a flat metacarpal mount,
-// only two phalanges (which is anatomically right), a tip, and two hinges.
+// Rendering each island on its own (tools/islands.html) and then finding the
+// moulded pin bores (tools/find-pivots.py) settles a question the bounding
+// boxes could not. A long-finger plate holds:
 //
-// Indices are into the pack's own ordering, islands sorted longest-first --
-// which for these files is also tallest-on-the-bed first, so index 0 is always
-// the longest segment. The thumb's index 0 is the odd one out: it is the flat
-// 33 mm bracket, longest overall but only 18 mm tall.
-const RECIPES = {
-  long:  { chain: [0, 1, 2], tip: 4, hinge: [3, 5], tipUp: true },
-  // The thumb's dome is printed the other way up, so its nose flag is inverted.
-  thumb: { chain: [1, 3],    tip: 5, hinge: [2, 4], mount: 0, tipUp: false },
-};
+//   3 CLEVIS pieces  — a tapering tube whose pin bore crosses the full width,
+//                      because it passes through two prongs. These are the
+//                      phalanges: 27, 22 and 17 mm on the index.
+//   2 TONGUE pieces  — a short link whose bore crosses only a 7 mm tab. The tab
+//                      drops into a clevis and takes the pin; the other end is
+//                      swallowed by the next phalanx. These are the joints.
+//   1 CAP            — the domed fingertip, no bore at all.
+//
+// The thumb plate is the same idea with two phalanges (which is anatomically
+// right), one tongue, a cap, and two unpinned brackets that mount the digit to
+// the palm. So nothing here is indexed by hand: the bore span classifies every
+// piece, and the chain is assembled on the measured pin positions.
+const CLEVIS_SPAN = 0.7;   // bore/width ratio above which a bore is two-pronged
+
+function classify(s) {
+  if (!s.bore) return 'cap';
+  return s.bore.span > Math.max(s.size[0], s.size[1]) * CLEVIS_SPAN ? 'clevis' : 'tongue';
+}
+
+// Standing a piece up maps its local axes to world: +Z (print height) becomes
+// the finger axis, and the pin bore's local X stays world X, so a digit flexes
+// in the YZ plane exactly as the printed part is built to.
+//   upright  (rot -90 about X): (x, y, z) -> ( x,  z, -y)
+//   inverted (rot +90 about X): (x, y, z) -> ( x, -z,  y)
+const boreOffset = (b, inverted) => (inverted
+  ? new THREE.Vector3(b.c[0], -b.c[2], b.c[1])
+  : new THREE.Vector3(b.c[0], b.c[2], -b.c[1]));
 
 function place(mesh, vc, noseUp = false) {
   mesh.position.set(0, 0, 0);
   mesh.quaternion.copy(alignPrintAxisToY(vc, noseUp));
 }
 
-function buildFinger(part, id, kind = 'long') {
+// Two chrome screw heads at the ends of a bore. Every photograph of one of these
+// hands shows them, and they are the only non-printed thing on a finger.
+function pinAt(g, name, p, bore) {
+  const r = bore.r * 1.35;
+  for (const side of [-1, 1]) {
+    const head = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), jointMat);
+    // Just inside the bore's ends, so the heads sit flush against the prongs
+    // instead of hanging off the sides of the finger.
+    head.position.set(p.x + side * bore.span * 0.42, p.y, p.z);
+    head.castShadow = true;
+    head.name = name;
+    g.add(head);
+  }
+}
+
+function buildFinger(part, id, { tipUp = true } = {}) {
   const g = new THREE.Group();
   g.name = `finger.${id}`;
 
-  const r = RECIPES[kind];
-  const isl = part.islands;                    // already sorted longest-first
-  const chain = r.chain.map((i) => isl[i]).filter(Boolean);
-  const tipPiece = isl[r.tip];
+  const kind = new Map(part.islands.map((s) => [s, classify(s)]));
+  const byLen = (a, b) => b.size[2] - a.size[2];
+  const clevis = part.islands.filter((s) => kind.get(s) === 'clevis').sort(byLen);
+  const tongue = part.islands.filter((s) => kind.get(s) === 'tongue').sort(byLen);
+  const caps = part.islands.filter((s) => kind.get(s) === 'cap');
 
-  const joints = [];
-  let y = 0;
-  let girth = 16;
+  // The fingertip is the roundest cap; anything else left over is a bracket and
+  // belongs to the palm, not to the digit.
+  const roundness = (s) => Math.min(...s.size) / Math.max(...s.size);
+  const tip = caps.length ? caps.reduce((a, b) => (roundness(b) > roundness(a) ? b : a)) : null;
+  const spare = caps.filter((s) => s !== tip);
 
-  chain.forEach((s, i) => {
-    const len = s.size[2];                       // print height = segment length
+  const pins = [];
+  let y = 0;                     // running base height of the next piece
+  let x = 0, z = 0;              // running centreline, so joints stay coaxial
+  let girth = Math.max(clevis[0]?.size[0] ?? 16, clevis[0]?.size[1] ?? 16);
+  let bend = 0;
+
+  clevis.forEach((s, i) => {
+    const len = s.size[2];
     girth = Math.max(s.size[0], s.size[1]);
 
     place(s.mesh, s.vc);
     const h = new THREE.Group();
-    h.name = `finger.${id}.seg${i}`;
+    h.name = `finger.${id}.phalanx${i}`;
     h.add(s.mesh);
-    h.position.y = y + len / 2;
-
-    // Each segment leans a little further forward than the last, so an open
-    // hand reads as relaxed rather than as a stack of blocks. The lean is taken
-    // about the joint below it, which is what a hinge does.
-    const bend = i * 3.2;
-    h.rotation.x = -bend * D;
+    h.position.set(x, y + len / 2, z);
+    // Each phalanx leans a few degrees further forward than the last, so an open
+    // hand reads as relaxed rather than as a stack of blocks.
+    h.rotation.x = -(bend += i ? 3.4 : 0) * D;
     g.add(h);
 
-    // Steel pin through the knuckle -- the pivot the printed parts actually
-    // turn on, and the one non-plastic thing on a finger.
-    const jy = y + len * 0.88;
-    const pin = new THREE.Mesh(new THREE.SphereGeometry(girth * 0.15, 20, 14), jointMat);
-    pin.position.set(0, jy, 0);
-    pin.castShadow = true;
-    g.add(pin);
-    joints.push(jy);
+    if (!s.bore) { y += len; return; }
+    const off = boreOffset(s.bore, false);
+    const pin = new THREE.Vector3(x + off.x, y + len / 2 + off.y, z + off.z);
+    pinAt(g, `finger.${id}.pin${i}`, pin, s.bore);
+    pins.push(pin.y);
 
-    // The next clevis swallows this knuckle, so the segments overlap. Without
-    // the overlap the digit shows a dark slot at every joint.
-    y += len * 0.74;
+    const link = tongue[i];
+    if (link && link.bore) {
+      // The tongue drops into the clevis tab-first, so it is inverted, and its
+      // own bore lands exactly on the pin just placed.
+      place(link.mesh, link.vc, true);
+      const lo = boreOffset(link.bore, true);
+      const lh = new THREE.Group();
+      lh.name = `finger.${id}.link${i}`;
+      lh.add(link.mesh);
+      lh.position.set(pin.x - lo.x, pin.y - lo.y, pin.z - lo.z);
+      lh.rotation.x = -bend * D;
+      g.add(lh);
+    }
+    // The next phalanx starts at the pin, because the pin IS its pivot. Starting
+    // it higher leaves the link exposed as a strut and the digit reads skeletal;
+    // starting it here, the hollow base swallows the link the way it does on the
+    // real hand.
+    x = pin.x; z = pin.z; y = pin.y;
   });
 
-  // The two hinge blocks are real geometry off the same plate, but they sit
-  // inside the joint rather than on it. Parked at the knuckle -- which lands
-  // them within the palm shell -- they stay in the part count, in the explode
-  // and in x-ray, without cluttering the silhouette of a closed finger.
-  (r.hinge || []).forEach((idx, i) => {
-    const s = isl[idx];
-    if (!s) return;
-    place(s.mesh, s.vc);
-    const h = new THREE.Group();
-    h.name = `finger.${id}.hinge${i}`;
-    h.add(s.mesh);
-    h.position.set((i - 0.5) * 9, -26, -5);
-    h.scale.setScalar(0.72);
-    g.add(h);
-  });
-
-  // Domed tip closes the digit.
-  if (tipPiece) {
-    const len = tipPiece.size[2];
-    place(tipPiece.mesh, tipPiece.vc, r.tipUp);
+  // Domed tip, pressed onto the last clevis.
+  if (tip) {
+    const len = tip.size[2];
+    place(tip.mesh, tip.vc, tipUp);
     const h = new THREE.Group();
     h.name = `finger.${id}.tip`;
-    h.add(tipPiece.mesh);
-    h.position.y = y + len / 2 - len * 0.14;
-    h.rotation.x = -(chain.length * 3.2) * D;
+    h.add(tip.mesh);
+    // The cap has a socket about half its depth, so it seats over the last
+    // clevis rather than sitting on the pin.
+    h.position.set(x, y + len * 0.78, z);
+    h.rotation.x = -bend * D;
     g.add(h);
-    y += len * 0.82;
+    y += len * 1.2;
   }
+
+  // Anything unpinned and un-domed is a mounting bracket. It sits at the base of
+  // the digit, inside the palm shell, so it stays in the part count, the explode
+  // and x-ray without cluttering the silhouette of a closed finger.
+  spare.forEach((s, i) => {
+    place(s.mesh, s.vc);
+    const h = new THREE.Group();
+    h.name = `finger.${id}.bracket${i}`;
+    h.add(s.mesh);
+    h.position.set((i - 0.5) * 11, -30, -7);
+    h.scale.setScalar(0.62);
+    g.add(h);
+  });
 
   // Tendon: the braided line that closes the finger, up the palmar side (+Z)
   // and anchored behind the tip.
   const curve = new THREE.CatmullRomCurve3([
     new THREE.Vector3(0, -6, girth * 0.34),
-    new THREE.Vector3(0, joints[0] ?? 16, girth * 0.42),
-    new THREE.Vector3(0, joints[1] ?? 34, girth * 0.38),
-    new THREE.Vector3(0, y - 7, girth * 0.20),
+    new THREE.Vector3(0, pins[0] ?? 16, girth * 0.44),
+    new THREE.Vector3(0, pins[1] ?? 34, girth * 0.40),
+    new THREE.Vector3(x, y - 7, z + girth * 0.20),
   ]);
   const tendon = new THREE.Mesh(new THREE.TubeGeometry(curve, 36, 0.85, 7, false), tendonMat);
   tendon.name = `tendon.${id}`;
@@ -386,7 +431,7 @@ export function buildHandAssembly(parts) {
   /* ---- thumb: offset, rotated out of the palm plane ---- */
   const th = parts.get('thumb5');
   if (th) {
-    const f = buildFinger(th, 'thumb', 'thumb');
+    const f = buildFinger(th, 'thumb', { tipUp: false });
     const holder = new THREE.Group();
     holder.name = 'thumb5';
     holder.add(f);
@@ -394,27 +439,14 @@ export function buildHandAssembly(parts) {
     // radial side, swings out about 55 degrees, and rolls forward so its pad
     // faces the fingers rather than the camera — opposition is the whole point
     // of a thumb, and without the roll it reads as a fifth finger.
-    setEuler(holder, [-14, 26, 42]);
-    holder.position.set(-40, 6, 10);
-    holder.scale.setScalar(0.9);
+    // Opposition is the whole point of a thumb. Rolling it 38 degrees off the
+    // palm's long axis and pitching it 50 degrees toward the viewer puts the
+    // digit where a thumb sits on an open hand -- out to the radial side and
+    // forward of the palm plane -- instead of lying flat beside the fingers.
+    setEuler(holder, [38, 15, 30]);
+    holder.position.set(-36, -6, 10);
+    holder.scale.setScalar(1.05);
     add(holder, { sub: 'finger', id: 'thumb5', label: 'Thumb', info: 'digit', explode: [-190, 40, 90] });
-
-    // The flat piece on the thumb plate is the metacarpal mount that bolts the
-    // whole digit to the side of the palm. It belongs to the palm, not to the
-    // finger chain, so it is placed and exploded separately.
-    const mount = th.islands[RECIPES.thumb.mount];
-    if (mount) {
-      place(mount.mesh, mount.vc);
-      const m = new THREE.Group();
-      m.name = 'thumb.mount';
-      m.add(mount.mesh);
-      setEuler(m, [-8, 22, 40]);
-      m.position.set(-46, -14, 4);
-      add(m, {
-        sub: 'palm', id: 'thumb.mount', label: 'Thumb mount',
-        info: 'palm', explode: [-215, -30, 60],
-      });
-    }
   }
 
   /* ---- finger covers: one per digit, laid over the knuckle line ---- */

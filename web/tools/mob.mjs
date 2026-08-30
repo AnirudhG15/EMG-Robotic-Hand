@@ -1,0 +1,15 @@
+import { chromium } from 'playwright';
+const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell'});
+const p=await b.newPage({viewport:{width:414,height:900},deviceScaleFactor:2});
+const errs=[];p.on('pageerror',e=>errs.push(e.message));
+await p.goto('http://localhost:4173/',{waitUntil:'load'});
+await p.waitForTimeout(11000);
+await p.screenshot({path:'/tmp/shots2/m-hero.png'});
+await p.evaluate(()=>document.querySelector('#tab-chain').click());
+await p.evaluate(()=>document.querySelector('.tabs').scrollIntoView({behavior:'instant',block:'start'}));
+await p.waitForTimeout(1800);
+await p.screenshot({path:'/tmp/shots2/m-chain.png'});
+const ov = await p.evaluate(()=>document.documentElement.scrollWidth - document.documentElement.clientWidth);
+console.log('horizontal overflow px:', ov);
+console.log(errs.length?errs.join('\n'):'no errors');
+await b.close();

@@ -12,7 +12,12 @@ positions to Int16 against each island's bounding box, and writes:
 Runtime cost to undo: dequantize to Float32, computeVertexNormals. ~80 MB of
 OBJ becomes ~2 MB of pack.
 
-Run from web/:  python3 tools/pack-meshes.py
+Also records the hinge pin bore found in each piece (tools/find-pivots.py), so
+the runtime can join finger segments at the pivot they actually turn on.
+
+Needs numpy for the bore search.  Run from web/:
+
+    pip install numpy && python3 tools/pack-meshes.py
 """
 
 import json
@@ -20,6 +25,14 @@ import os
 import struct
 import sys
 from collections import defaultdict
+from importlib.machinery import SourceFileLoader
+
+import numpy as np
+
+# Hinge-bore detection lives next door; assembly needs the pin positions to join
+# segments where they actually pivot instead of by bounding-box overlap.
+pivots = SourceFileLoader(
+    'pivots', os.path.join(os.path.dirname(__file__), 'find-pivots.py')).load_module()
 
 SRC = os.path.join(os.path.dirname(__file__), '..', '..', 'hardware', 'Right_Hand_Parts')
 OUT = os.path.join(os.path.dirname(__file__), '..', 'public')
@@ -120,12 +133,28 @@ def main():
                 a, b, c = faces[fi]
                 blob += struct.pack('<3H', local[a], local[b], local[c])
 
-            part['islands'].append({
+            entry = {
                 'v': v_off, 'nv': len(pts),
                 'i': i_off, 'nt': len(isl),
                 'min': [round(x, 3) for x in mn],
                 'max': [round(x, 3) for x in mx],
-            })
+            }
+
+            # Hinge bore, in coordinates centred on the island's bounding box --
+            # the same frame the runtime meshes arrive in. The pin runs along
+            # local X on every jointed piece in this hand, so that is the only
+            # axis worth searching.
+            Vi = np.asarray(pts, dtype=np.float64)
+            Fi = np.asarray([[local[a], local[b], local[c]]
+                             for a, b, c in (faces[fi] for fi in isl)], dtype=np.int64)
+            bore = pivots.find_bore(Vi, Fi, axis=0)
+            if bore is not None:
+                mid = [(mn[k] + mx[k]) / 2 for k in range(3)]
+                entry['bore'] = {
+                    'c': [round(bore['c'][k] - mid[k], 3) for k in range(3)],
+                    'r': bore['r'], 'span': bore['span'],
+                }
+            part['islands'].append(entry)
         # Big islands first so runtime can treat [0] as the main body.
         part['islands'].sort(key=lambda s: -s['nv'])
         manifest['parts'].append(part)
