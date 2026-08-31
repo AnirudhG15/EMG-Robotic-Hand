@@ -108,7 +108,29 @@ const tendonMat = new THREE.MeshStandardMaterial({
 // right), one tongue, a cap, and two unpinned brackets that mount the digit to
 // the palm. So nothing here is indexed by hand: the bore span classifies every
 // piece, and the chain is assembled on the measured pin positions.
+const byLen2 = (a, b) => Math.max(...b.size) - Math.max(...a.size);
+
 const CLEVIS_SPAN = 0.7;   // bore/width ratio above which a bore is two-pronged
+
+const AXIAL = [1.32, 0.92, 0.72];  // per-phalanx axial stretch, proximal first
+// The cap sleeves the distal phalanx rather than sitting on its end, so it needs
+// to be a touch wider than the 15 mm piece it covers -- it is printed at 14.2.
+const TIP_AXIAL = 1.0;
+const TIP_GIRTH = 1.10;
+// ...and the distal it covers is taken in a little, so its clevis prongs do not
+// break out through the cap's wall and saw a ring of teeth around the fingertip.
+const DISTAL_GIRTH = 0.88;
+// Phalanges butt against each other with a couple of millimetres of overlap; the
+// link bridging them lives inside. Starting each one at the pin instead made it
+// slide over the segment below and the digit telescoped, every joint showing a
+// collar. With this, the bones come out 51 / 28 / 21 against a human 51 / 29 / 20.
+const JOINT_OVERLAP = 2.0;
+// The thumb plate is a chunkier part than the finger plates -- 22.8 mm across
+// where the index is 17.3 -- so it takes the opposite correction: barely any
+// axial stretch, and a uniform trim below so the digit is only a little wider
+// than the fingers, which is what a thumb is.
+const AXIAL_THUMB = [1.05, 0.95];
+const THUMB_SCALE = 0.88;
 
 function classify(s) {
   if (!s.bore) return 'cap';
@@ -144,7 +166,7 @@ function pinAt(g, name, p, bore) {
   }
 }
 
-function buildFinger(part, id, { tipUp = true } = {}) {
+function buildFinger(part, id, { tipUp = true, axial = AXIAL } = {}) {
   const g = new THREE.Group();
   g.name = `finger.${id}`;
 
@@ -165,9 +187,17 @@ function buildFinger(part, id, { tipUp = true } = {}) {
   let x = 0, z = 0;              // running centreline, so joints stay coaxial
   let girth = Math.max(clevis[0]?.size[0] ?? 16, clevis[0]?.size[1] ?? 16);
   let bend = 0;
+  let distalBase = 0;            // joint the cap slides down from
 
   clevis.forEach((s, i) => {
-    const len = s.size[2];
+    // Axial stretch. Measured joint to joint, the printed finger runs about
+    // 40 / 30 / 30 proximal-middle-distal; a human index is 51 / 29 / 20. The
+    // parts are the parts, so the correction is a scale along the digit's own
+    // axis only -- girth is untouched, and a tapering tube 20 per cent longer
+    // or shorter reads as the same part, where a knuckle 20 per cent wider
+    // would not. This gets the bones to roughly 47 / 29 / 24.
+    const k = axial[i] ?? 1;
+    const len = s.size[2] * k;
     girth = Math.max(s.size[0], s.size[1]);
 
     place(s.mesh, s.vc);
@@ -175,14 +205,17 @@ function buildFinger(part, id, { tipUp = true } = {}) {
     h.name = `finger.${id}.phalanx${i}`;
     h.add(s.mesh);
     h.position.set(x, y + len / 2, z);
+    const last = i === clevis.length - 1;
+    h.scale.set(last ? DISTAL_GIRTH : 1, k, last ? DISTAL_GIRTH : 1);
     // Each phalanx leans a few degrees further forward than the last, so an open
     // hand reads as relaxed rather than as a stack of blocks.
     h.rotation.x = -(bend += i ? 3.4 : 0) * D;
     g.add(h);
 
+    if (i === clevis.length - 1) distalBase = y;
     if (!s.bore) { y += len; return; }
     const off = boreOffset(s.bore, false);
-    const pin = new THREE.Vector3(x + off.x, y + len / 2 + off.y, z + off.z);
+    const pin = new THREE.Vector3(x + off.x, y + len / 2 + off.y * k, z + off.z);
     pinAt(g, `finger.${id}.pin${i}`, pin, s.bore);
     pins.push(pin.y);
 
@@ -199,26 +232,31 @@ function buildFinger(part, id, { tipUp = true } = {}) {
       lh.rotation.x = -bend * D;
       g.add(lh);
     }
-    // The next phalanx starts at the pin, because the pin IS its pivot. Starting
-    // it higher leaves the link exposed as a strut and the digit reads skeletal;
-    // starting it here, the hollow base swallows the link the way it does on the
-    // real hand.
-    x = pin.x; z = pin.z; y = pin.y;
+    // The next phalanx butts against the top of this one. The pin stays where the
+    // bore is -- part way down this segment, through its clevis prongs and the
+    // link's tab -- which is where the screws sit on the real hand.
+    x = pin.x; z = pin.z;
+    y += len - JOINT_OVERLAP;
   });
 
-  // Domed tip, pressed onto the last clevis.
+  // Domed tip. It is a SLEEVE over the distal phalanx, not a bead on the end of
+  // it: seated on the end it added 17 mm to a 68 mm finger and the distal bone
+  // came out half again its anatomical share. Slid down over the distal from the
+  // last joint, it is the distal bone, and the piece it covers hides inside.
   if (tip) {
-    const len = tip.size[2];
+    const len = tip.size[2] * TIP_AXIAL;
     place(tip.mesh, tip.vc, tipUp);
     const h = new THREE.Group();
     h.name = `finger.${id}.tip`;
     h.add(tip.mesh);
-    // The cap has a socket about half its depth, so it seats over the last
-    // clevis rather than sitting on the pin.
-    h.position.set(x, y + len * 0.78, z);
+    h.scale.set(TIP_GIRTH, TIP_AXIAL, TIP_GIRTH);
+    // Clear of the joint below, or the cap's rim intersects the middle phalanx
+    // -- which is wider than the cap -- and the seam saws through it.
+    const seat = distalBase + JOINT_OVERLAP + 1;
+    h.position.set(x, seat + len / 2, z);
     h.rotation.x = -bend * D;
     g.add(h);
-    y += len * 1.2;
+    y = seat + len;
   }
 
   // Anything unpinned and un-domed is a mounting bracket. It sits at the base of
@@ -229,8 +267,8 @@ function buildFinger(part, id, { tipUp = true } = {}) {
     const h = new THREE.Group();
     h.name = `finger.${id}.bracket${i}`;
     h.add(s.mesh);
-    h.position.set((i - 0.5) * 11, -30, -7);
-    h.scale.setScalar(0.62);
+    h.position.set((i - 0.5) * 13, -17, 0);
+    h.scale.setScalar(0.6);
     g.add(h);
   });
 
@@ -323,7 +361,18 @@ const SUBS = {
 // against 82 mm of middle finger. The printed palm plate is 108 mm tall, so the
 // knuckle line sits 8 mm inside its top edge and the proportion comes out right.
 const MCP_Y = 52;                 // middle-finger knuckle height
-const FINGER_MM = { index: 72, middle: 80, ring: 76, pinky: 60.5 };
+
+// Human relative digit lengths, middle finger = 1. Absolute millimetres were
+// the wrong target: hitting them meant stretching every digit by a quarter, and
+// the printed parts are what they are. The RATIOS are what the eye reads, and
+// they cost a few per cent of stretch instead of twenty-five.
+const DIGIT_RATIO = { index: 0.90, middle: 1.0, ring: 0.95, pinky: 0.76 };
+
+// A little length on top of that. With the proximal stretch the middle finger's
+// first phalanx comes out 37 mm long on an 18.6 mm girth against a human 40 x 20,
+// so this is closing a real gap rather than inventing one, and it brings the
+// finger-to-palm ratio from 0.66 up toward the 0.77 of a hand.
+const DIGIT_GAIN = 1.08;
 
 const DIGITS = [
   { id: 'index',  part: 'Index3',       x: -23.5, y: MCP_Y - 5,  z: 1,  tilt: -4, yaw: -3 },
@@ -425,18 +474,29 @@ export function buildHandAssembly(parts) {
   }
 
   /* ---- four long digits ---- */
-  DIGITS.forEach((d, i) => {
+  //
+  // Built first, then scaled, because the lengths are relative to each other:
+  // the middle finger sets the scale and the other three are trimmed to their
+  // anthropometric share of it.
+  const built = DIGITS.map((d) => {
     const p = parts.get(d.part);
-    if (!p) return;
-    const f = buildFinger(p, d.id);
+    return p ? { d, f: buildFinger(p, d.id) } : null;
+  }).filter(Boolean);
+
+  const refLen = built.find((b) => b.d.id === 'middle')?.f.userData.length
+    ?? built[0]?.f.userData.length ?? 1;
+
+  built.forEach(({ d, f }, i) => {
     const holder = new THREE.Group();
     holder.name = d.part;
     holder.add(f);
     setEuler(holder, [0, d.yaw, d.tilt]);
     holder.position.set(d.x, d.y, d.z);
-    // Scaled to its anthropometric length rather than to a number picked by eye,
-    // so the four fingertips land on the arc a real hand makes.
-    holder.scale.setScalar(FINGER_MM[d.id] / f.userData.length);
+    // Length only, and only a few per cent of it. Scaling uniformly to an
+    // absolute length inflated every digit by a quarter and four fingers came
+    // out wider than the palm they grow from; girth now stays exactly as
+    // printed, because the palm is unscaled too.
+    holder.scale.set(1, (refLen * DIGIT_RATIO[d.id] * DIGIT_GAIN) / f.userData.length, 1);
     add(holder, {
       sub: 'finger', id: d.part,
       label: `${d.id[0].toUpperCase()}${d.id.slice(1)} finger`,
@@ -448,7 +508,7 @@ export function buildHandAssembly(parts) {
   /* ---- thumb: offset, rotated out of the palm plane ---- */
   const th = parts.get('thumb5');
   if (th) {
-    const f = buildFinger(th, 'thumb', { tipUp: false });
+    const f = buildFinger(th, 'thumb', { tipUp: false, axial: AXIAL_THUMB });
     const holder = new THREE.Group();
     holder.name = 'thumb5';
     holder.add(f);
@@ -460,40 +520,63 @@ export function buildHandAssembly(parts) {
     // palm's long axis and pitching it 50 degrees toward the viewer puts the
     // digit where a thumb sits on an open hand -- out to the radial side and
     // forward of the palm plane -- instead of lying flat beside the fingers.
-    setEuler(holder, [38, 15, 30]);
-    holder.position.set(-36, -6, 10);
-    holder.scale.setScalar(1.05);
+    // The thumb was flying 55 mm out of the palm plane -- an opposed thumb
+    // rises out of it by about 25 degrees, not 55. This aims the digit up, out
+    // to the radial side and modestly forward, which is where a thumb sits on
+    // an open hand.
+    setEuler(holder, [18, 18, 46]);
+    holder.position.set(-34, -6, 4);
+    holder.scale.set(THUMB_SCALE, THUMB_SCALE * 1.12, THUMB_SCALE);
     add(holder, { sub: 'finger', id: 'thumb5', label: 'Thumb', info: 'digit', explode: [-190, 40, 90] });
   }
 
-  /* ---- finger covers: one per digit, laid over the knuckle line ---- */
+  /* ---- metacarpal covers, on the back of the hand ---- */
+  //
+  // These were on the palmar side, floating a centimetre in front of the
+  // fingers, because they were read as covers for the phalanges. The geometry
+  // says otherwise: each is a gutter 33-39 mm long -- far longer than a 21 mm
+  // proximal phalanx -- curved about its own long axis, and four of them laid
+  // side by side span 68 mm, which is the width of this palm across the
+  // metacarpals. They are the back of the hand.
+  //
+  // Which way a gutter opens is measurable: the material of a curved shell sits
+  // toward its convex side, so the vertex centroid points at the back and the
+  // opening faces the other way. All four have vc.z about -0.5, so they open
+  // toward +Z and have to sit behind the palm to cup it.
   const covers = parts.get('coverfinger1');
   if (covers) {
-    const small = covers.islands.filter((s) => Math.max(...s.size) < 45);
-    const big = covers.islands.filter((s) => Math.max(...s.size) >= 45);
-    small.slice(0, 4).forEach((s, i) => {
+    const gutters = covers.islands.filter((s) => Math.max(...s.size) < 45).sort(byLen2);
+    const wristCover = covers.islands.find((s) => Math.max(...s.size) >= 45);
+
+    // Back face of the palm base plate; the covers seat just outside it.
+    const palmBack = -17;
+    gutters.slice(0, 4).forEach((s, i) => {
       const d = DIGITS[i];
       s.mesh.position.set(0, 0, 0);
       setEuler(s.mesh, alignLongestToY(s.size));
       const h = new THREE.Group();
       h.name = `cover.${d.id}`;
       h.add(s.mesh);
-      h.position.set(d.x, d.y + 12, 13);
-      setEuler(h, [0, d.yaw, d.tilt]);
+      // One per metacarpal ray, running the length of the palm and stopping
+      // short of the knuckle line. Half the gutter's depth clears the plate.
+      h.position.set(d.x * 0.86, d.y - s.size[1] * 0.5 - 4, palmBack - s.size[2] * 0.34);
+      setEuler(h, [0, d.yaw * 0.5, d.tilt * 0.6]);
       add(h, {
         sub: 'cover', id: `cover.${d.id}`,
-        label: `${d.id[0].toUpperCase()}${d.id.slice(1)} cover`,
-        info: 'cover', explode: [(i - 1.5) * 70, 210, 130],
+        label: `${d.id[0].toUpperCase()}${d.id.slice(1)} metacarpal cover`,
+        info: 'cover', explode: [(i - 1.5) * 70, 60, -210],
       });
     });
-    big.forEach((s, i) => {
-      s.mesh.position.set(0, 0, 0);
+
+    if (wristCover) {
+      wristCover.mesh.position.set(0, 0, 0);
+      setEuler(wristCover.mesh, alignLongestToY(wristCover.size));
       const h = new THREE.Group();
-      h.name = 'cover.knuckle';
-      h.add(s.mesh);
-      h.position.set(0, 34, 16);
-      add(h, { sub: 'cover', id: 'cover.knuckle', label: 'Knuckle cover', info: 'cover', explode: [0, 120, 190] });
-    });
+      h.name = 'cover.wrist';
+      h.add(wristCover.mesh);
+      h.position.set(0, -34, palmBack - wristCover.size[2] * 0.34);
+      add(h, { sub: 'cover', id: 'cover.wrist', label: 'Wrist cover', info: 'cover', explode: [0, -110, -190] });
+    }
   }
 
   /* ---- fasteners ---- */

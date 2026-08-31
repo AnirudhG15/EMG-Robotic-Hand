@@ -386,9 +386,9 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
     state.pitch = ease(state.pitch, state.targetPitch, dt, k);
     state.dist = ease(state.dist, state.targetDist, dt, k * 0.8);
     state.lift = ease(state.lift, state.targetLift, dt, k * 0.8);
-    state.explode = ease(state.explode, state.targetExplode, dt, 0.0075);
-    state.poseYaw = ease(state.poseYaw, state.targetPoseYaw, dt, 0.0055);
-    state.posePitch = ease(state.posePitch, state.targetPosePitch, dt, 0.0055);
+    state.explode = ease(state.explode, state.targetExplode, dt, 0.011);
+    state.poseYaw = ease(state.poseYaw, state.targetPoseYaw, dt, 0.008);
+    state.posePitch = ease(state.posePitch, state.targetPosePitch, dt, 0.008);
     state.xray = ease(state.xray, state.targetXray, dt, 0.009);
 
     if (hand) {

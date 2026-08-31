@@ -74,6 +74,14 @@
 
 html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+/* Lenis stamps these on <html> when it takes over. Native smooth scrolling has
+   to be off then, or the browser animates the real scroll position while Lenis
+   animates its own and the two argue on every anchor jump. */
+html.lenis, html.lenis body { height: auto; }
+html.lenis { scroll-behavior: auto !important; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-smooth [data-lenis-prevent] { overscroll-behavior: contain; }
+.lenis.lenis-stopped { overflow: hidden; }
 
 body {
   margin: 0;

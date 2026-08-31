@@ -14,8 +14,8 @@ const a=new THREE.DirectionalLight(0xffffff,1.1);a.position.set(3,5,6);sc.add(a)
 const b2=new THREE.DirectionalLight(0x88aaff,0.5);b2.position.set(-5,2,-5);sc.add(b2);
 const b3=new THREE.DirectionalLight(0xffffff,0.35);b3.position.set(0,-3,4);sc.add(b3);
 const mat=new THREE.MeshStandardMaterial({color:0xdfe4ee,roughness:0.42,metalness:0.05});
-const specs=[['Index3','index',{}],['thumb5','thumb',{tipUp:false}]];
-const ANG=[0, Math.PI/2, Math.PI];
+const specs=[['Index3','index',{}]];
+const ANG=[0, Math.PI/2, Math.PI, -Math.PI/2];
 specs.forEach(([pid,id,kind],si)=>{
   // Build once -- the pack hands out one mesh per island, so building the same
   // part twice would steal the meshes from the first copy. Clone for the extra
@@ -26,13 +26,13 @@ specs.forEach(([pid,id,kind],si)=>{
     const g = j===0 ? base : base.clone(true);
     const w=new THREE.Group(); w.add(g); w.rotation.y=ang;
     const o=new THREE.Group(); o.add(w);
-    o.position.x = (si*3+j)*80 - 200;
+    o.position.x = j*46 - 69;
     sc.add(o);
   });
 });
-const cam=new THREE.OrthographicCamera(-260,260,0,0,-2000,2000);
-const H=520*innerHeight/innerWidth;
-cam.top=H*0.5+40; cam.bottom=-H*0.5+40; cam.updateProjectionMatrix();
+const cam=new THREE.OrthographicCamera(-100,100,0,0,-2000,2000);
+const H=200*innerHeight/innerWidth;
+cam.top=H*0.5+32; cam.bottom=-H*0.5+32; cam.updateProjectionMatrix();
 cam.position.set(0,0,600); cam.lookAt(0,0,0);
 r.render(sc,cam);
 window.__ready=true;

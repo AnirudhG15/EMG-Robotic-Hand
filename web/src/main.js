@@ -1,5 +1,7 @@
+import * as THREE from 'three';
 import gsap from 'gsap';
 import ScrollTrigger from 'gsap/ScrollTrigger';
+import Lenis from 'lenis';
 import { createPartScene } from './three/scene.js';
 import { createExplorer, REDUCED } from './three/explorer.js';
 import { HAND_INFO } from './data/hand-info.js';
@@ -20,7 +22,36 @@ function onScreen(canvas) {
   if (r.width === 0 || r.height === 0) return false;
   return r.bottom > -200 && r.top < window.innerHeight + 200;
 }
+/* --------------------------------------------------------- smooth scroll */
+// A wheel notch is a jump, not a movement: the browser applies the whole delta
+// on one frame, so the model's explode and the camera move arrive as a step and
+// then ease out of it. Scrub smoothing hid some of that but could not fix the
+// input itself. Lenis interpolates the scroll position instead, so a notch
+// becomes a short ramp and everything driven by scroll -- the teardown, the
+// camera, the chapters -- follows a continuous value.
+//
+// It runs on the page's own rAF rather than its internal one, so the scroll
+// position is settled before the frame that reads it, and there is exactly one
+// loop driving the whole page.
+const lenis = REDUCED ? null : new Lenis({
+  duration: 1.05,
+  // A long, flat ease. Anything springy reads as lag on a trackpad, where the
+  // input is already continuous.
+  easing: (t) => 1 - Math.pow(1 - t, 3),
+  wheelMultiplier: 0.9,
+  // Touch scrolling is already smooth and momentum-based; taking it over makes
+  // a phone feel worse, not better.
+  smoothWheel: true,
+  syncTouch: false,
+});
+
+// Lenis drives the real window scroll, so ScrollTrigger reads the right value
+// already and only needs telling when it changed. A scrollerProxy on top of
+// that would be a second source of truth for the same number.
+if (lenis) lenis.on('scroll', ScrollTrigger.update);
+
 function loop(t) {
+  if (lenis) lenis.raf(t);
   for (const s of scenes) if (onScreen(s.canvas)) s.frame(t);
   requestAnimationFrame(loop);
 }
@@ -154,7 +185,12 @@ const explorer = createExplorer(stageCanvas, {
   },
 });
 scenes.push({ canvas: stageCanvas, frame: explorer.frame });
-if (import.meta.env.DEV) window.__explorer = explorer; // dev-only camera probe
+// dev-only probes: tools/*.mjs drive the camera and measure the assembly
+if (import.meta.env.DEV) {
+  window.__explorer = explorer;
+  window.__THREE = THREE;
+  window.__lenis = lenis;
+}
 
 $('#inspect-close').addEventListener('click', () => explorer.select(null));
 document.addEventListener('keydown', (e) => {
@@ -215,7 +251,10 @@ ScrollTrigger.create({
   trigger: '#build',
   start: 'top top',
   end: 'bottom bottom',
-  scrub: REDUCED ? false : 1.1,
+  // Lenis already ramps the input, so the scrub only has to take the edge off
+  // the last of it. Left at 1.1 the two smoothings stack and the model lags a
+  // second behind the page.
+  scrub: REDUCED ? false : 0.55,
   onUpdate: (self) => {
     const p = self.progress;
     explorer.setExplode(p);
@@ -295,17 +334,22 @@ tablist.addEventListener('keydown', (e) => {
   selectTab(tabs[n].id.replace('tab-', ''), { focus: true });
 });
 
+// Every programmatic jump has to go through Lenis. Left as native smooth
+// scrolls they fight it -- the browser animates the real scroll position while
+// Lenis animates its own, and the page stutters between the two.
+function scrollToTarget(target) {
+  if (lenis) { lenis.scrollTo(target, { offset: -12, duration: 1.1 }); return; }
+  if (typeof target === 'number') window.scrollTo({ top: target, behavior: REDUCED ? 'auto' : 'smooth' });
+  else target.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
+}
+
 // Nav buttons open the matching tab, then scroll to it.
 $('#nav-links').addEventListener('click', (e) => {
-  const scrollTo = e.target.closest('[data-scrollto]');
-  if (scrollTo) {
-    window.scrollTo({ top: 0, behavior: REDUCED ? 'auto' : 'smooth' });
-    return;
-  }
+  if (e.target.closest('[data-scrollto]')) { scrollToTarget(0); return; }
   const b = e.target.closest('[data-goto]');
   if (!b) return;
   selectTab(b.dataset.goto);
-  tablist.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'start' });
+  scrollToTarget(tablist);
 });
 
 /* ========================================================= signal chain */
