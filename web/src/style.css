@@ -17,8 +17,8 @@
    ========================================================================== */
 
 :root {
-  --void:      #F4F6FA;   /* page ground */
-  --ground:    #EDF0F6;   /* recessed bands */
+  --void:      #F2F5FC;   /* page ground */
+  --ground:    #E9EEF9;   /* recessed bands */
   --panel:     #FFFFFF;   /* cards */
   --panel-hi:  #F7F9FD;   /* card, raised or active */
   --glass:     rgba(255, 255, 255, .82);
@@ -40,6 +40,13 @@
   /* The analog signal path owns indigo; it is the page's primary accent. */
   --signal: #2340D6;
   --signal-soft: #E8ECFF;
+
+  /* Decoration only. The rails and sweeps are not text, so these are the vivid
+     end of the palette rather than the contrast-checked hues the type uses --
+     which is the whole reason they can carry this much chroma. */
+  --hot:   #2B2BF5;
+  --arc:   #00C2FF;
+  --spark: #FF2D9B;
 
   --font-display: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
   --font-body: "DM Sans", "Helvetica Neue", Arial, sans-serif;
@@ -70,6 +77,72 @@
   --s4:  clamp(2.8rem, 1.9rem + 4.4vw, 6rem);
 }
 
+/* ================================================================ board */
+/* The ambient electrical field. Fixed and full-bleed, sitting behind every
+   section's content but above the page ground, so the whole page reads as
+   something with current in it rather than a white sheet with a diagram on it.
+
+   It is BELOW the hero's WebGL canvas on purpose: the model is a product shot
+   and wants a clean sweep behind it, and the field already has the rest of the
+   page. mix-blend-mode keeps it from muddying the section grounds -- multiply
+   would grey them, so the light layers add and the copper darkens. */
+.rails {
+  position: fixed; inset: 0; z-index: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  opacity: .92;
+}
+@media (prefers-reduced-motion: reduce) { .rails { opacity: .6; } }
+
+/* ------------------------------------------------------------------ bus */
+/* A current-carrying line at each section boundary. One packet crosses it on a
+   loop; the line itself is static. */
+.bus {
+  position: relative; height: 2px; overflow: hidden;
+  background: linear-gradient(90deg,
+    transparent, color-mix(in srgb, var(--hot) 42%, transparent) 10%,
+    color-mix(in srgb, var(--hot) 42%, transparent) 90%, transparent);
+}
+.bus i {
+  position: absolute; inset: 0 auto 0 0;
+  width: 26%;
+  background: linear-gradient(90deg, transparent, var(--arc) 45%, #fff 52%, var(--arc) 60%, transparent);
+  filter: drop-shadow(0 0 6px var(--arc));
+  transform: translateX(-120%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bus i { animation: bus-run 6.5s cubic-bezier(.5,0,.5,1) infinite; }
+  @keyframes bus-run {
+    0%   { transform: translateX(-120%); }
+    62%  { transform: translateX(560%); }
+    100% { transform: translateX(560%); }
+  }
+}
+
+/* --------------------------------------------------------------- sweep */
+/* A section arriving gets one pass of a scan line across its top edge. Once,
+   on entry -- a beam that loops is a screensaver. */
+.sweep { position: relative; }
+.sweep::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--arc), #fff, var(--arc), transparent);
+  filter: drop-shadow(0 0 10px var(--arc));
+  transform: scaleX(0); transform-origin: 0 50%;
+  opacity: 0;
+}
+.sweep[data-swept="true"]::before {
+  animation: sweep-run 1.15s cubic-bezier(.22,.61,.36,1) forwards;
+}
+@keyframes sweep-run {
+  0%   { transform: scaleX(0);   transform-origin: 0 50%;   opacity: 1; }
+  55%  { transform: scaleX(1);   transform-origin: 0 50%;   opacity: 1; }
+  56%  { transform: scaleX(1);   transform-origin: 100% 50%; opacity: 1; }
+  100% { transform: scaleX(0);   transform-origin: 100% 50%; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sweep[data-swept="true"]::before { animation: none; opacity: 0; }
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 html { scroll-behavior: smooth; }
@@ -85,7 +158,15 @@ html.lenis { scroll-behavior: auto !important; }
 
 body {
   margin: 0;
-  background: var(--void);
+  /* Not a flat fill. Two very wide washes in the accent hues give the ground a
+     temperature that shifts down the page, so a long scroll does not sit on one
+     dead colour. */
+  background:
+    radial-gradient(120% 60% at 8% 0%, rgba(43, 43, 245, .07) 0%, transparent 62%),
+    radial-gradient(90% 55% at 100% 42%, rgba(0, 194, 255, .07) 0%, transparent 60%),
+    radial-gradient(80% 50% at 20% 100%, rgba(255, 45, 155, .05) 0%, transparent 62%),
+    var(--void);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-body);
   font-size: var(--s0);
@@ -197,7 +278,7 @@ section { position: relative; }
    during the teardown, though: half the parts end up down here, and the whole
    point of the scroll is seeing them. --stage-fade is driven by scroll. */
 .stage::before {
-  content: ''; position: absolute; z-index: 2; pointer-events: none;
+  content: ''; position: absolute; z-index: 3; pointer-events: none;
   inset: auto 0 0 0; height: 42%;
   opacity: var(--stage-fade, 1);
   background: linear-gradient(to top,
@@ -207,10 +288,46 @@ section { position: relative; }
 }
 /* Vignette, always on — it is what keeps the eye on the model. */
 .stage::after {
-  content: ''; position: absolute; z-index: 2; pointer-events: none;
+  content: ''; position: absolute; z-index: 3; pointer-events: none;
   inset: 0;
   background: radial-gradient(116% 86% at 62% 40%, transparent 44%, rgba(96, 114, 148, .26) 100%);
 }
+/* Drifting pools of accent light over the hero. The page's field canvas is
+   behind the model's opaque canvas and cannot reach here, so the same four hues
+   are composited in front of it instead -- pure light, no traces, because a
+   copper lattice drawn across a product shot reads as scratches on the lens.
+   Transforms only, so the whole layer stays on the compositor. */
+.stage-glow { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+.stage-glow i {
+  position: absolute; display: block;
+  width: 74vmax; height: 74vmax; margin: -37vmax;
+  border-radius: 50%;
+  mix-blend-mode: plus-lighter;
+  will-change: transform;
+}
+.stage-glow i:nth-child(1) { left: 26%; top: 24%; background: radial-gradient(circle, rgba(43,43,245,.12), transparent 62%); }
+.stage-glow i:nth-child(2) { left: 74%; top: 40%; background: radial-gradient(circle, rgba(0,194,255,.12), transparent 62%); }
+.stage-glow i:nth-child(3) { left: 40%; top: 80%; background: radial-gradient(circle, rgba(255,45,155,.085), transparent 62%); }
+.stage-glow i:nth-child(4) { left: 86%; top: 14%; background: radial-gradient(circle, rgba(124,58,237,.10), transparent 62%); }
+@media (prefers-reduced-motion: no-preference) {
+  .stage-glow i:nth-child(1) { animation: drift-a 27s ease-in-out infinite; }
+  .stage-glow i:nth-child(2) { animation: drift-b 33s ease-in-out infinite; }
+  .stage-glow i:nth-child(3) { animation: drift-c 39s ease-in-out infinite; }
+  .stage-glow i:nth-child(4) { animation: drift-b 45s ease-in-out infinite reverse; }
+}
+@keyframes drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(14vw, 9vh, 0) scale(1.16); }
+}
+@keyframes drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1.1); }
+  50%      { transform: translate3d(-17vw, 12vh, 0) scale(.9); }
+}
+@keyframes drift-c {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(.95); }
+  50%      { transform: translate3d(11vw, -14vh, 0) scale(1.2); }
+}
+
 .stage-canvas { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; display: block; cursor: grab; }
 .stage-canvas:active { cursor: grabbing; }
 .stage-grid {
@@ -545,7 +662,8 @@ body[data-index-open="true"] .stage-head { opacity: .12; }
 
 .placeholder-note {
   border-block: 1px solid var(--rule);
-  background: var(--ground);
+  background: color-mix(in srgb, var(--ground) 78%, transparent);
+  backdrop-filter: blur(2px);
   padding-block: var(--sp-5);
 }
 .placeholder-note .wrap { display: flex; gap: var(--sp-4); align-items: baseline; flex-wrap: wrap; }
@@ -620,7 +738,9 @@ body[data-index-open="true"] .stage-head { opacity: .12; }
 #scope-stage { color: #9FB0CC; }
 /* Colour is set from the trace palette in main.js as the stage changes; this is
    only the value before the first selection. */
-#scope-amp { color: #FF9A4D; font-variant-numeric: tabular-nums; }
+/* Not uppercased: text-transform turns the micro sign into a capital mu, and
+   "1-5 MV" is three orders of magnitude off what this stage actually carries. */
+#scope-amp { color: #FF9A4D; font-variant-numeric: tabular-nums; text-transform: none; }
 
 .chain-list {
   list-style: none; padding: 0; margin: 0;
@@ -848,7 +968,11 @@ tfoot td:last-child { color: var(--lime); }
 
 /* ---------------------------------------------------------------- foot */
 
-.foot { border-top: 1px solid var(--rule); padding-block: var(--sp-6); background: var(--ground); }
+.foot {
+  border-top: 1px solid var(--rule); padding-block: var(--sp-6);
+  background: color-mix(in srgb, var(--ground) 80%, transparent);
+  backdrop-filter: blur(2px);
+}
 .foot-grid { display: grid; gap: var(--sp-5); }
 @media (min-width: 800px) { .foot-grid { grid-template-columns: repeat(3, 1fr); } }
 .foot p { margin: 0 0 .4rem; color: var(--ink-faint); font-size: .91rem; line-height: 1.72; max-width: 44ch; text-wrap: pretty; }

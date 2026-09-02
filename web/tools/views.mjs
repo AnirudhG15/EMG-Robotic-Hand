@@ -22,7 +22,7 @@ for (const [name, st] of VIEWS) {
       document.querySelectorAll(sel).forEach((n) => (n.style.display = 'none'));
   }, st);
   await p.waitForTimeout(6000);
-  await p.screenshot({ path: `/tmp/shots3/${name}.png`, animations: 'disabled', timeout: 60000 });
+  await p.screenshot({ path: `/tmp/shots4/${name}.png`, animations: 'disabled', timeout: 60000 });
   await p.close();
 }
 await b.close(); console.log('ok');

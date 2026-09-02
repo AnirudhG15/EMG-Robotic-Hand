@@ -6,6 +6,7 @@ import { createPartScene } from './three/scene.js';
 import { createExplorer, REDUCED } from './three/explorer.js';
 import { HAND_INFO } from './data/hand-info.js';
 import { PARTS, GROUPS, GROUP_HEX, BOM, DECISIONS, CHAIN } from './data/parts.js';
+import { createCircuit } from './circuit.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -50,11 +51,33 @@ const lenis = REDUCED ? null : new Lenis({
 // that would be a second source of truth for the same number.
 if (lenis) lenis.on('scroll', ScrollTrigger.update);
 
+/* --------------------------------------------------------------- rails */
+// The signal path down the page margins. It runs on the same frame loop as
+// everything else, gets scroll progress for which amplifier stage to draw, and
+// scroll velocity for how fast the charge moves.
+const rails = createCircuit($('#rails'), { reduced: REDUCED });
+let lastScroll = 0;
+let flow = 0;
+
 function loop(t) {
   if (lenis) lenis.raf(t);
+  const dt = Math.min(64, t - (loop.last || t - 16.7));
+  loop.last = t;
+
+  const y = window.scrollY;
+  const doc = document.documentElement.scrollHeight - window.innerHeight;
+  // Velocity decays rather than snapping back, so the current coasts to a stop
+  // the way it would in something with inductance.
+  flow += (Math.min(1, Math.abs(y - lastScroll) / 42) - flow) * (1 - Math.exp(-dt * 0.006));
+  lastScroll = y;
+  rails.setFlow(flow);
+  rails.setProgress(doc > 0 ? y / doc : 0);
+  rails.frame(dt);
+
   for (const s of scenes) if (onScreen(s.canvas)) s.frame(t);
   requestAnimationFrame(loop);
 }
+window.addEventListener('resize', () => rails.resize(), { passive: true });
 
 /* ============================================================= explorer */
 
@@ -600,6 +623,19 @@ if (!REDUCED) {
     });
   });
 }
+
+/* ------------------------------------------------------------- sweeps */
+// One scan across the top edge as a section arrives. Once each — a beam that
+// loops is a screensaver, not a signal.
+$$('.placeholder-note, .tabs, .foot').forEach((el) => {
+  el.classList.add('sweep');
+  ScrollTrigger.create({
+    trigger: el,
+    start: 'top 88%',
+    once: true,
+    onEnter: () => el.setAttribute('data-swept', 'true'),
+  });
+});
 
 requestAnimationFrame(loop);
 ScrollTrigger.refresh();

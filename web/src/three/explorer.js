@@ -59,6 +59,11 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
         uHorizon:{ value: new THREE.Color(0xe6ecf8) },
         uFloor:  { value: new THREE.Color(0x8b9cba) },
         uPool:   { value: new THREE.Color(0xffffff) },
+        // The page behind the hero carries drifting pools of accent light. The
+        // hero cannot show that layer -- this canvas is opaque and sits over it
+        // -- so the sweep renders its own, in the same hues, and the two read as
+        // one continuous room.
+        uTime:   { value: 0 },
       },
       vertexShader: `
         varying vec3 vDir;
@@ -69,6 +74,21 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
       fragmentShader: `
         varying vec3 vDir;
         uniform vec3 uTop, uHorizon, uFloor, uPool;
+        uniform float uTime;
+
+        // One drifting pool: a soft falloff around a direction that wanders.
+        // The visible backdrop is the far hemisphere from the camera, so a pool
+        // aimed at +Z -- toward the viewer -- lands entirely behind the lens and
+        // never shows. These aim away.
+        vec3 pool(vec3 base, vec3 d, vec3 c, float ph, float amt) {
+          vec3 dir = normalize(vec3(
+            0.80 * sin(uTime * 0.13 + ph),
+            0.25 + 0.40 * sin(uTime * 0.09 + ph * 1.7),
+            -0.72));
+          float f = pow(max(0.0, dot(d, dir)), 1.15);
+          return mix(base, c, f * amt);
+        }
+
         void main() {
           float h = vDir.y;
           // Two-stop vertical ramp: a lit wall above the horizon falling to a
@@ -76,8 +96,12 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
           vec3 c = mix(uFloor, uHorizon, smoothstep(-0.40, 0.10, h));
           c = mix(c, uTop, smoothstep(0.05, 0.72, h));
           // Soft pool of light behind the subject, up and slightly camera-left.
-          float pool = pow(max(0.0, dot(vDir, normalize(vec3(-0.18, 0.30, 0.94)))), 5.0);
-          c += uPool * pool * 0.16;
+          c += uPool * pow(max(0.0, dot(vDir, normalize(vec3(0.18, 0.30, -0.94)))), 5.0) * 0.16;
+          // Same four hues as the page's field, at the same restraint.
+          c = pool(c, vDir, vec3(0.169, 0.169, 0.961), 0.0, 0.10);
+          c = pool(c, vDir, vec3(0.000, 0.760, 1.000), 2.1, 0.10);
+          c = pool(c, vDir, vec3(1.000, 0.176, 0.608), 4.2, 0.07);
+          c = pool(c, vDir, vec3(0.486, 0.227, 0.929), 5.6, 0.09);
           gl_FragColor = vec4(c, 1.0);
         }`,
     }),
@@ -378,6 +402,7 @@ export function createExplorer(canvas, { onHover, onSelect, onReady, onError } =
     const dt = Math.min(60, lastT ? t - lastT : 16.7);
     lastT = t;
     if (ready) checkQuality(dt);
+    if (!REDUCED) backdrop.material.uniforms.uTime.value += dt * 0.001;
 
     if (state.autoSpin && !REDUCED && !selected) state.targetYaw += dt * 0.00022;
 

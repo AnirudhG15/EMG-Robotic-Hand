@@ -166,7 +166,7 @@ function pinAt(g, name, p, bore) {
   }
 }
 
-function buildFinger(part, id, { tipUp = true, axial = AXIAL } = {}) {
+function buildFinger(part, id, { tipUp = true, axial = AXIAL, cover = null } = {}) {
   const g = new THREE.Group();
   g.name = `finger.${id}`;
 
@@ -186,8 +186,10 @@ function buildFinger(part, id, { tipUp = true, axial = AXIAL } = {}) {
   let y = 0;                     // running base height of the next piece
   let x = 0, z = 0;              // running centreline, so joints stay coaxial
   let girth = Math.max(clevis[0]?.size[0] ?? 16, clevis[0]?.size[1] ?? 16);
+  const girth0 = girth;          // the proximal's, for seating its cover
   let bend = 0;
   let distalBase = 0;            // joint the cap slides down from
+  let proximal = null;           // span of the first phalanx, for its cover
 
   clevis.forEach((s, i) => {
     // Axial stretch. Measured joint to joint, the printed finger runs about
@@ -212,6 +214,7 @@ function buildFinger(part, id, { tipUp = true, axial = AXIAL } = {}) {
     h.rotation.x = -(bend += i ? 3.4 : 0) * D;
     g.add(h);
 
+    if (i === 0) proximal = { base: y, len };
     if (i === clevis.length - 1) distalBase = y;
     if (!s.bore) { y += len; return; }
     const off = boreOffset(s.bore, false);
@@ -257,6 +260,29 @@ function buildFinger(part, id, { tipUp = true, axial = AXIAL } = {}) {
     h.rotation.x = -bend * D;
     g.add(h);
     y = seat + len;
+  }
+
+  // Dorsal cover over the proximal phalanx.
+  //
+  // These sat on the palmar side for a long time, floating a centimetre in front
+  // of the hand, and then on the back of the palm, because at 33-39 mm they were
+  // far too long for a proximal phalanx -- when the proximal was 21 mm. It is
+  // 38-41 mm now that the segments butt instead of telescoping, and the four
+  // covers match the four digits in length order. They are finger covers; they
+  // just never fitted the finger the assembly used to build.
+  //
+  // A curved shell carries its material toward the convex side, so the vertex
+  // centroid points at the back and the gutter opens the other way. These open
+  // toward +Z, which is the palm, so they cup the phalanx from behind.
+  if (cover && proximal) {
+    cover.mesh.position.set(0, 0, 0);
+    setEuler(cover.mesh, alignLongestToY(cover.size));
+    const h = new THREE.Group();
+    h.name = `finger.${id}.cover`;
+    h.add(cover.mesh);
+    h.scale.y = (proximal.len * 0.94) / cover.size[1];
+    h.position.set(0, proximal.base + proximal.len * 0.52, -girth0 * 0.42);
+    g.add(h);
   }
 
   // Anything unpinned and un-domed is a mounting bracket. It sits at the base of
@@ -478,9 +504,20 @@ export function buildHandAssembly(parts) {
   // Built first, then scaled, because the lengths are relative to each other:
   // the middle finger sets the scale and the other three are trimmed to their
   // anthropometric share of it.
+  // The four proximal covers, longest to shortest, handed to the digits in the
+  // same order -- middle, index, ring, little -- which is how they come off the
+  // plate and how the digits rank.
+  const coverPart = parts.get('coverfinger1');
+  const proxCovers = coverPart
+    ? coverPart.islands.filter((c) => Math.max(...c.size) < 45).sort(byLen2)
+    : [];
+  const COVER_ORDER = ['middle', 'index', 'ring', 'pinky'];
+
   const built = DIGITS.map((d) => {
     const p = parts.get(d.part);
-    return p ? { d, f: buildFinger(p, d.id) } : null;
+    if (!p) return null;
+    const cover = proxCovers[COVER_ORDER.indexOf(d.id)] ?? null;
+    return { d, f: buildFinger(p, d.id, { cover }) };
   }).filter(Boolean);
 
   const refLen = built.find((b) => b.d.id === 'middle')?.f.userData.length
@@ -530,51 +567,18 @@ export function buildHandAssembly(parts) {
     add(holder, { sub: 'finger', id: 'thumb5', label: 'Thumb', info: 'digit', explode: [-190, 40, 90] });
   }
 
-  /* ---- metacarpal covers, on the back of the hand ---- */
-  //
-  // These were on the palmar side, floating a centimetre in front of the
-  // fingers, because they were read as covers for the phalanges. The geometry
-  // says otherwise: each is a gutter 33-39 mm long -- far longer than a 21 mm
-  // proximal phalanx -- curved about its own long axis, and four of them laid
-  // side by side span 68 mm, which is the width of this palm across the
-  // metacarpals. They are the back of the hand.
-  //
-  // Which way a gutter opens is measurable: the material of a curved shell sits
-  // toward its convex side, so the vertex centroid points at the back and the
-  // opening faces the other way. All four have vc.z about -0.5, so they open
-  // toward +Z and have to sit behind the palm to cup it.
-  const covers = parts.get('coverfinger1');
-  if (covers) {
-    const gutters = covers.islands.filter((s) => Math.max(...s.size) < 45).sort(byLen2);
-    const wristCover = covers.islands.find((s) => Math.max(...s.size) >= 45);
-
-    // Back face of the palm base plate; the covers seat just outside it.
-    const palmBack = -17;
-    gutters.slice(0, 4).forEach((s, i) => {
-      const d = DIGITS[i];
-      s.mesh.position.set(0, 0, 0);
-      setEuler(s.mesh, alignLongestToY(s.size));
-      const h = new THREE.Group();
-      h.name = `cover.${d.id}`;
-      h.add(s.mesh);
-      // One per metacarpal ray, running the length of the palm and stopping
-      // short of the knuckle line. Half the gutter's depth clears the plate.
-      h.position.set(d.x * 0.86, d.y - s.size[1] * 0.5 - 4, palmBack - s.size[2] * 0.34);
-      setEuler(h, [0, d.yaw * 0.5, d.tilt * 0.6]);
-      add(h, {
-        sub: 'cover', id: `cover.${d.id}`,
-        label: `${d.id[0].toUpperCase()}${d.id.slice(1)} metacarpal cover`,
-        info: 'cover', explode: [(i - 1.5) * 70, 60, -210],
-      });
-    });
-
+  /* ---- wrist cover, on the back of the hand ---- */
+  const coverSet = parts.get('coverfinger1');
+  if (coverSet) {
+    const wristCover = coverSet.islands.find((c) => Math.max(...c.size) >= 45);
     if (wristCover) {
       wristCover.mesh.position.set(0, 0, 0);
       setEuler(wristCover.mesh, alignLongestToY(wristCover.size));
       const h = new THREE.Group();
       h.name = 'cover.wrist';
       h.add(wristCover.mesh);
-      h.position.set(0, -34, palmBack - wristCover.size[2] * 0.34);
+      // Just outside the back of the palm plate, which ends at z = -17.
+      h.position.set(0, -34, -17 - wristCover.size[2] * 0.34);
       add(h, { sub: 'cover', id: 'cover.wrist', label: 'Wrist cover', info: 'cover', explode: [0, -110, -190] });
     }
   }

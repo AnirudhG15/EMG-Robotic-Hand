@@ -23,6 +23,10 @@
 
 <a class="skip" href="#main">Skip to content</a>
 
+<!-- Ambient electrical field behind the page: drifting pools of accent light,
+     a routed copper lattice, and current running it. Decorative only. -->
+<canvas class="rails" id="rails" aria-hidden="true"></canvas>
+
 <nav class="nav" id="nav">
   <a class="nav-mark" href="#top">
     <span class="nav-dot" aria-hidden="true"></span>
@@ -45,6 +49,9 @@
 <!-- ============================================ explorer -->
 <section class="stage" id="top">
   <canvas class="stage-canvas" id="hand-canvas" aria-hidden="true"></canvas>
+  <!-- Light in the room. The model's own canvas is opaque, so the page's field
+       cannot show through it; these are the same four hues, drifting, in front. -->
+  <div class="stage-glow" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
   <div class="stage-grid" aria-hidden="true"></div>
 
   <div class="stage-head">
@@ -141,6 +148,8 @@
 </section>
 </div>
 
+<div class="bus" aria-hidden="true"><i></i></div>
+
 <div class="placeholder-note">
   <div class="wrap">
     <span class="tag">Real geometry</span>
@@ -154,6 +163,8 @@
     </p>
   </div>
 </div>
+
+<div class="bus" aria-hidden="true"><i></i></div>
 
 <!-- ============================================ tabs -->
 <section class="tabs">
@@ -272,6 +283,8 @@
 
   </div>
 </section>
+
+<div class="bus" aria-hidden="true"><i></i></div>
 
 <footer class="foot">
   <div class="wrap">
